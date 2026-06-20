@@ -8,6 +8,11 @@ from ..logging_config import get_logger
 router = APIRouter(prefix="/api/account", tags=["account"])
 
 
+@router.get("", response_model=schemas.AccountOut)
+def get_account(acc: models.Account = Depends(current_account)):
+    return schemas.AccountOut(user=acc.user, company=acc.company or "")
+
+
 @router.post("/password")
 def change_password(
     body: schemas.ChangePasswordIn,

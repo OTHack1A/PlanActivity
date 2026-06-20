@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 class RegisterIn(BaseModel):
     user: str
     password: str
+    company: str = ""
 
 
 class LoginIn(BaseModel):
@@ -28,6 +29,11 @@ class ChangePasswordIn(BaseModel):
     new_password: str = Field(alias="next")
 
     model_config = {"populate_by_name": True}
+
+
+class AccountOut(BaseModel):
+    user: str
+    company: str
 
 
 # --- Department ---

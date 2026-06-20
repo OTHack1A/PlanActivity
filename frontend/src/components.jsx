@@ -38,7 +38,7 @@ function AvatarImg({ emp }) {
 }
 
 /* ---------------------------------------------------------------- TOPBAR */
-export function Topbar({ view, setView, date, setDate, onSettings, onLog, onAccount, onCalendar, onToday, page, onLogout }) {
+export function Topbar({ view, setView, date, setDate, onSettings, onLog, onAccount, onCalendar, onToday, page, onLogout, company }) {
   const today = todayISO()
   const step = (dir) => {
     if (view === 'day') setDate(addDays(date, dir))
@@ -77,6 +77,12 @@ export function Topbar({ view, setView, date, setDate, onSettings, onLog, onAcco
         </>
       )}
       <div className="spacer"></div>
+      {company && (
+        <div className="company-id">
+          <img src="/logo.jpg" alt="" className="company-logo" />
+          <span className="company-name">{company}</span>
+        </div>
+      )}
       {page === 'calendar' ? (
         <>
           <button className="btn-icon" onClick={onSettings}>⚙ Impostazioni</button>

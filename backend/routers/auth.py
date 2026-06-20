@@ -24,11 +24,16 @@ def register(body: schemas.RegisterIn, db: Session = Depends(get_db)):
     user = body.user.strip()
     if not user or not body.password:
         raise HTTPException(status_code=422, detail="Utente e password sono obbligatori")
-    acc = models.Account(user=user, password_hash=hash_password(body.password))
+    acc = models.Account(
+        user=user,
+        password_hash=hash_password(body.password),
+        company=body.company.strip(),
+    )
     db.add(acc)
     db.commit()
     db.refresh(acc)
-    get_logger().info(f"Nuovo account registrato: utente '{user}'")
+    company_info = f" — azienda: '{acc.company}'" if acc.company else ""
+    get_logger().info(f"Nuovo account registrato: utente '{user}'{company_info}")
     return {"access_token": create_token(acc.id)}
 
 

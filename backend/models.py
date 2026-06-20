@@ -15,6 +15,7 @@ class Account(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_new_id)
     user: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    company: Mapped[str] = mapped_column(String, default="")
 
 
 class Department(Base):

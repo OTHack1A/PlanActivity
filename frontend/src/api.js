@@ -28,10 +28,11 @@ async function req(path, opts = {}) {
 
 // --- Auth ---
 export const authStatus = () => req('/auth/status')
-export const register = (user, password) =>
-  req('/auth/register', { method: 'POST', body: JSON.stringify({ user, password }) })
+export const register = (user, password, company = '') =>
+  req('/auth/register', { method: 'POST', body: JSON.stringify({ user, password, company }) })
 export const login = (user, password) =>
   req('/auth/login', { method: 'POST', body: JSON.stringify({ user, password }) })
+export const getAccount = () => req('/account')
 export const logout = () => req('/auth/logout', { method: 'POST' })
 export const changePassword = (current, next) =>
   req('/account/password', { method: 'POST', body: JSON.stringify({ current, next }) })

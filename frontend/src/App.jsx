@@ -42,6 +42,7 @@ function PwInput({ value, onChange, className, autoFocus }) {
 // Register
 // ---------------------------------------------------------------------------
 function Register({ onRegister }) {
+  const [company, setCompany] = useState('')
   const [user, setUser] = useState('')
   const [pass, setPass] = useState('')
   const [pass2, setPass2] = useState('')
@@ -54,7 +55,7 @@ function Register({ onRegister }) {
     e.preventDefault()
     if (!valid) return
     try {
-      const { access_token } = await api.register(user.trim(), pass)
+      const { access_token } = await api.register(user.trim(), pass, company.trim())
       api.setToken(access_token)
       onRegister()
     } catch (err) {
@@ -66,12 +67,23 @@ function Register({ onRegister }) {
     <div className="login-screen">
       <div className="login-grid"></div>
       <form className="login-card" onSubmit={submit}>
+        <img src="/logo.jpg" alt="Logo" className="login-logo" />
         <div className="login-brand"><span className="dot"></span><span>PIANIFICA</span></div>
         <h1>Crea il tuo account</h1>
-        <p className="login-lead">Imposta le credenziali per accedere al sistema.</p>
+        <p className="login-lead">Configura il sistema per la tua officina.</p>
+        <label className="fld">
+          <span>Nome azienda</span>
+          <input
+            autoFocus
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            placeholder="Es. Autofficina Rossi"
+            autoComplete="organization"
+          />
+        </label>
         <label className="fld">
           <span>Utente</span>
-          <input autoFocus value={user} onChange={(e) => setUser(e.target.value)} autoComplete="username" />
+          <input value={user} onChange={(e) => setUser(e.target.value)} autoComplete="username" />
         </label>
         <label className="fld">
           <span>Password</span>
@@ -115,6 +127,7 @@ function Login({ onLogin }) {
     <div className="login-screen">
       <div className="login-grid"></div>
       <form className={'login-card' + (shake ? ' shake' : '')} onSubmit={submit}>
+        <img src="/logo.jpg" alt="Logo" className="login-logo" />
         <div className="login-brand"><span className="dot"></span><span>PIANIFICA</span></div>
         <h1>Accesso al sistema</h1>
         <p className="login-lead">Inserisci le credenziali per continuare.</p>
@@ -488,6 +501,7 @@ export default function App() {
   // 'loading' | 'register' | 'login' | 'app'
   const [screen, setScreen] = useState('loading')
   const [data, setData] = useState({ departments: [], employees: [], entries: {}, absences: {} })
+  const [company, setCompany] = useState('')
   const [page, setPage] = useState('calendar')
   const [view, setView] = useState('day')
   const [date, setDate] = useState(todayISO)
@@ -541,9 +555,10 @@ export default function App() {
   // Carica i dati al login
   useEffect(() => {
     if (screen !== 'app') return
-    Promise.all([api.getDepartments(), api.getEmployees()])
-      .then(([depts, emps]) => {
+    Promise.all([api.getDepartments(), api.getEmployees(), api.getAccount()])
+      .then(([depts, emps, acc]) => {
         setData((prev) => ({ ...prev, departments: depts, employees: emps }))
+        setCompany(acc?.company || '')
         return loadEntries(view, date)
       })
       .catch((err) => {
@@ -603,6 +618,7 @@ export default function App() {
         view={view} setView={changeView}
         date={date} setDate={setDate}
         page={page}
+        company={company}
         onSettings={() => { api.logEvent('Pagina aperta', { pagina: 'Impostazioni' }); setPage('settings') }}
         onLog={() => { api.logEvent('Pagina aperta', { pagina: 'Log' }); setPage('log') }}
         onAccount={() => { api.logEvent('Pagina aperta', { pagina: 'Account' }); setPage('account') }}

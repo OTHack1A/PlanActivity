@@ -478,6 +478,35 @@ select option { background: var(--elevated); color: var(--text); }
 .login-hint { margin-top: 18px; text-align: center; font-size: 12px; color: var(--faint); }
 .login-hint b { color: var(--accent-ink); font-family: var(--mono); }
 
+/* ---------- logo login ---------- */
+.login-logo {
+  display: block;
+  max-height: 72px;
+  max-width: 180px;
+  object-fit: contain;
+  margin: 0 auto 12px;
+  border-radius: 10px;
+}
+
+/* ---------- company identity in topbar ---------- */
+.company-id {
+  display: flex; align-items: center; gap: 9px;
+  padding: 0 14px 0 4px;
+  border-right: 1px solid var(--border);
+  margin-right: 4px;
+  flex: none;
+}
+.company-logo {
+  height: 30px; width: auto; max-width: 60px;
+  object-fit: contain; border-radius: 6px;
+}
+.company-name {
+  font-size: 13px; font-weight: 600;
+  color: var(--text); letter-spacing: 0.01em;
+  white-space: nowrap; max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+
 /* ---------- log viewer ---------- */
 .log-header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 6px; }
 .log-header h1 { margin: 0; font-size: 23px; font-weight: 600; letter-spacing: -0.01em; }
