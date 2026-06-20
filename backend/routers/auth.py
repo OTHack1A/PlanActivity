@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models, schemas
 from ..auth import hash_password, verify_password, create_token, current_account
+from ..logging_config import get_logger
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -27,24 +28,29 @@ def register(body: schemas.RegisterIn, db: Session = Depends(get_db)):
     db.add(acc)
     db.commit()
     db.refresh(acc)
+    get_logger().info(f"Nuovo account registrato: utente '{user}'")
     return {"access_token": create_token(acc.id)}
 
 
 @router.post("/login", response_model=schemas.TokenOut)
 def login(body: schemas.LoginIn, db: Session = Depends(get_db)):
+    user = body.user.strip()
     acc = (
         db.query(models.Account)
-        .filter(models.Account.user.ilike(body.user.strip()))
+        .filter(models.Account.user.ilike(user))
         .first()
     )
     if not acc or not verify_password(body.password, acc.password_hash):
+        get_logger().warning(f"Tentativo di login fallito: utente '{user}'")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenziali non valide",
         )
+    get_logger().info(f"Login riuscito: utente '{acc.user}'")
     return {"access_token": create_token(acc.id)}
 
 
 @router.post("/logout")
-def logout():
+def logout(_: models.Account = Depends(current_account)):
+    get_logger().info("Logout effettuato")
     return {"ok": True}

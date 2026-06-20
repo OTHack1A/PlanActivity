@@ -6,10 +6,15 @@ __pycache__/
 venv/
 .env
 
-# Database (i dati restano sulla macchina, non nel repo)
+# Database e file dati (restano sulla macchina, non nel repo)
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/avatars/
+
+# Log (generato a runtime)
+pianifica.log
+pianifica.log.*
 
 # Node
 node_modules/

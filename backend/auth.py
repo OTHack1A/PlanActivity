@@ -1,5 +1,6 @@
 import os
-import bcrypt
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, InvalidHashError
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
@@ -14,13 +15,26 @@ TOKEN_EXPIRE_HOURS = 8
 
 _bearer = HTTPBearer()
 
+# Argon2id — vincitore della Password Hashing Competition (2015), parametri OWASP raccomandati
+_ph = PasswordHasher(
+    time_cost=3,
+    memory_cost=65536,  # 64 MB
+    parallelism=4,
+    hash_len=32,
+    salt_len=16,
+)
+
 
 def hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+    return _ph.hash(plain)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode(), hashed.encode())
+    try:
+        _ph.verify(hashed, plain)
+        return True
+    except (VerifyMismatchError, InvalidHashError, Exception):
+        return False
 
 
 def create_token(account_id: str) -> str:

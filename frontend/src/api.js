@@ -50,9 +50,27 @@ export const patchEmployee = (id, patch) =>
   req(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
 export const deleteEmployee = (id) => req(`/employees/${id}`, { method: 'DELETE' })
 
+// --- Avatar ---
+export const uploadAvatar = (empId, file) => {
+  const form = new FormData()
+  form.append('file', file)
+  const headers = {}
+  if (_token) headers['Authorization'] = `Bearer ${_token}`
+  return fetch(`/api/employees/${empId}/avatar`, { method: 'POST', headers, body: form })
+    .then((r) => (r.status === 204 ? null : r.json()))
+}
+export const deleteAvatar = (empId) => req(`/employees/${empId}/avatar`, { method: 'DELETE' })
+
 // --- Entries ---
 export const getEntries = (from, to) => req(`/entries?from=${from}&to=${to}`)
 export const putEntries = (empId, date, activities) =>
   req(`/entries/${empId}/${date}`, { method: 'PUT', body: JSON.stringify({ activities }) })
 export const putAbsence = (empId, date, type) =>
   req(`/absences/${empId}/${date}`, { method: 'PUT', body: JSON.stringify({ type: type || null }) })
+
+// --- Log ---
+export const getLog = (lines = 500) => req(`/log?lines=${lines}`)
+export const logEvent = (action, details = {}) => {
+  if (!_token) return Promise.resolve()
+  return req('/log/event', { method: 'POST', body: JSON.stringify({ action, details }) }).catch(() => {})
+}

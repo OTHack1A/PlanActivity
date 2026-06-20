@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models, schemas
 from ..auth import current_account
+from ..logging_config import get_logger
 
 router = APIRouter(prefix="/api", tags=["entries"])
 
@@ -55,7 +56,8 @@ def put_entries(
     db: Session = Depends(get_db),
     _: models.Account = Depends(current_account),
 ):
-    if not db.get(models.Employee, employee_id):
+    emp = db.get(models.Employee, employee_id)
+    if not emp:
         raise HTTPException(status_code=404, detail="Dipendente non trovato")
     try:
         d = date_type.fromisoformat(date_str)
@@ -81,6 +83,11 @@ def put_entries(
         )
 
     db.commit()
+    n = len(body.activities)
+    total_h = sum(a.hours for a in body.activities)
+    get_logger().info(
+        f"Attività aggiornate: '{emp.name}' il {date_str} — {n} attività, tot {total_h:.1f} h"
+    )
     return {"ok": True}
 
 
@@ -92,7 +99,8 @@ def put_absence(
     db: Session = Depends(get_db),
     _: models.Account = Depends(current_account),
 ):
-    if not db.get(models.Employee, employee_id):
+    emp = db.get(models.Employee, employee_id)
+    if not emp:
         raise HTTPException(status_code=404, detail="Dipendente non trovato")
     try:
         d = date_type.fromisoformat(date_str)
@@ -108,10 +116,14 @@ def put_absence(
     if not body.type:
         if existing:
             db.delete(existing)
+            get_logger().info(f"Assenza rimossa: '{emp.name}' il {date_str}")
     elif existing:
+        if existing.type != body.type:
+            get_logger().info(f"Assenza modificata: '{emp.name}' il {date_str} — {existing.type} → {body.type}")
         existing.type = body.type
     else:
         db.add(models.Absence(employee_id=employee_id, date=d, type=body.type))
+        get_logger().info(f"Assenza impostata: '{emp.name}' il {date_str} — {body.type}")
 
     db.commit()
     return {"ok": True}

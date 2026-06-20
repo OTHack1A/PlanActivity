@@ -17,8 +17,28 @@ const DOW = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
 const STD_HOURS = 8
 const empTarget = (emp) => STD_HOURS + (Number(emp && emp.overtime) || 0)
 
+/* ---------------------------------------------------------------- AVATAR */
+// Mostra la foto profilo se disponibile, altrimenti le iniziali.
+function AvatarImg({ emp }) {
+  const [failed, setFailed] = useState(false)
+  if (!emp.hasAvatar || failed) return null
+  return (
+    <img
+      src={`/api/employees/${emp.id}/avatar`}
+      alt=""
+      style={{
+        position: 'absolute', inset: 0,
+        width: '100%', height: '100%',
+        objectFit: 'cover',
+        borderRadius: 'inherit',
+      }}
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 /* ---------------------------------------------------------------- TOPBAR */
-export function Topbar({ view, setView, date, setDate, onSettings, onAccount, onCalendar, onToday, page, onLogout }) {
+export function Topbar({ view, setView, date, setDate, onSettings, onLog, onAccount, onCalendar, onToday, page, onLogout }) {
   const today = todayISO()
   const step = (dir) => {
     if (view === 'day') setDate(addDays(date, dir))
@@ -60,6 +80,7 @@ export function Topbar({ view, setView, date, setDate, onSettings, onAccount, on
       {page === 'calendar' ? (
         <>
           <button className="btn-icon" onClick={onSettings}>⚙ Impostazioni</button>
+          <button className="btn-icon" onClick={onLog}>≡ Log</button>
           <button className="btn-icon" onClick={onAccount}>◉ Account</button>
         </>
       ) : (
@@ -106,7 +127,10 @@ export function DayView({ data, date, onOpen }) {
                     onClick={() => onOpen(emp, dep)}
                   >
                     <div className="who">
-                      <span className="avatar">{initials(emp.name)}</span>
+                      <span className="avatar" style={{ position: 'relative', overflow: 'hidden' }}>
+                        {initials(emp.name)}
+                        <AvatarImg emp={emp} />
+                      </span>
                       <span>
                         <div className="name">{emp.name}</div>
                         <div className="role">{emp.role}</div>
@@ -187,7 +211,10 @@ export function WeekView({ data, date, onOpenDate }) {
                   <tr key={emp.id}>
                     <td className="col-emp">
                       <div className="emp-cell">
-                        <span className="ava" style={{ '--dept': dep.color }}>{initials(emp.name)}</span>
+                        <span className="ava" style={{ '--dept': dep.color, position: 'relative', overflow: 'hidden' }}>
+                          {initials(emp.name)}
+                          <AvatarImg emp={emp} />
+                        </span>
                         <span>
                           <div className="nm">{emp.name}</div>
                           <div className="rl">{emp.role}</div>
@@ -386,7 +413,10 @@ export function ActivityModal({ data, ctx, onSave, onClose }) {
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ '--dept': dep.color }}>
         <div className="modal-head">
-          <span className="avatar">{initials(emp.name)}</span>
+          <span className="avatar" style={{ position: 'relative', overflow: 'hidden' }}>
+            {initials(emp.name)}
+            <AvatarImg emp={emp} />
+          </span>
           <div>
             <div className="name">{emp.name}</div>
             <div className="sub">{emp.role} · {dep.name} · {fmtLong(date)}</div>

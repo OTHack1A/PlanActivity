@@ -183,6 +183,74 @@ function Account({ onBack }) {
 }
 
 // ---------------------------------------------------------------------------
+// Log viewer (sola lettura)
+// ---------------------------------------------------------------------------
+function LogViewer() {
+  const [lines, setLines] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const { lines: l } = await api.getLog(500)
+      setLines([...l].reverse())
+      setError(null)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    load()
+    const id = setInterval(load, 5000)
+    return () => clearInterval(id)
+  }, [load])
+
+  const levelClass = (line) => {
+    if (line.includes('[ERROR]')) return 'log-err'
+    if (line.includes('[WARNING]')) return 'log-warn'
+    return 'log-info'
+  }
+
+  return (
+    <div className="wrap">
+      <div className="log-header">
+        <h1>Log di sistema</h1>
+        <button
+          className="btn-icon"
+          onClick={() => { setRefreshing(true); load() }}
+          disabled={refreshing}
+        >
+          ↻ Aggiorna
+        </button>
+      </div>
+      <p className="log-meta">
+        Ultimi 500 eventi · aggiornamento automatico ogni 5 s · sola lettura
+      </p>
+      {loading ? (
+        <div className="log-loading">Caricamento…</div>
+      ) : error ? (
+        <div className="log-loading log-err">{error}</div>
+      ) : (
+        <div className="log-viewer">
+          {lines.length === 0 ? (
+            <div className="log-empty">Nessun evento registrato.</div>
+          ) : (
+            lines.map((line, i) => (
+              <div key={i} className={'log-line ' + levelClass(line)}>{line}</div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
 function Settings({ data, onReload }) {
@@ -199,9 +267,20 @@ function Settings({ data, onReload }) {
   const getEmpVal = (emp, field) => empEdits[emp.id]?.[field] ?? emp[field]
   const onEmpChange = (id, field, val) =>
     setEmpEdits((prev) => ({ ...prev, [id]: { ...prev[id], [field]: val } }))
+
   const onEmpBlur = async (id, field) => {
     const val = empEdits[id]?.[field]
     if (val === undefined) return
+    const emp = data.employees.find((e) => e.id === id)
+    const oldVal = emp?.[field] ?? ''
+    if (String(val) !== String(oldVal)) {
+      api.logEvent('Campo dipendente modificato', {
+        dipendente: emp?.name ?? id,
+        campo: field,
+        da: String(oldVal),
+        a: String(val),
+      })
+    }
     await api.patchEmployee(id, { [field]: val })
     await onReload('employees')
     setEmpEdits((prev) => {
@@ -214,6 +293,7 @@ function Settings({ data, onReload }) {
   const addDep = async () => {
     const name = depName.trim()
     if (!name) return
+    api.logEvent('Bottone premuto', { azione: 'Aggiungi reparto', nome: name, colore: depColor })
     await api.createDepartment(name, depColor)
     setDepName('')
     setDepColor(DEPT_COLORS[(data.departments.length + 1) % DEPT_COLORS.length])
@@ -224,6 +304,8 @@ function Settings({ data, onReload }) {
     const count = data.employees.filter((e) => e.departmentId === id).length
     if (count > 0 && !confirm(`Eliminando questo reparto verranno eliminati anche ${count} dipendenti e le relative attività. Procedere?`))
       return
+    const dep = data.departments.find((d) => d.id === id)
+    api.logEvent('Bottone premuto', { azione: 'Elimina reparto', nome: dep?.name ?? id })
     await api.deleteDepartment(id)
     await onReload('all')
   }
@@ -231,6 +313,7 @@ function Settings({ data, onReload }) {
   const addEmp = async () => {
     const name = empName.trim()
     if (!name || !empDep) return
+    api.logEvent('Bottone premuto', { azione: 'Aggiungi dipendente', nome: name })
     await api.createEmployee({ name, role: empRole.trim() || '—', departmentId: empDep, overtime: '' })
     setEmpName(''); setEmpRole('')
     await onReload('employees')
@@ -245,7 +328,17 @@ function Settings({ data, onReload }) {
   }
 
   const removeEmp = async (id) => {
+    const emp = data.employees.find((e) => e.id === id)
+    api.logEvent('Bottone premuto', { azione: 'Elimina dipendente', nome: emp?.name ?? id })
     await api.deleteEmployee(id)
+    await onReload('employees')
+  }
+
+  const handleAvatarUpload = async (empId, file) => {
+    if (!file) return
+    const emp = data.employees.find((e) => e.id === empId)
+    api.logEvent('Foto profilo caricata', { dipendente: emp?.name ?? empId })
+    await api.uploadAvatar(empId, file)
     await onReload('employees')
   }
 
@@ -316,9 +409,27 @@ function Settings({ data, onReload }) {
               const dep = depById(emp.departmentId)
               return (
                 <div className="emp-row" key={emp.id}>
-                  <span className="ava" style={{ background: dep ? dep.color : 'var(--faint)' }}>
+                  <label
+                    className="ava avatar-upload"
+                    style={{ background: dep ? dep.color : 'var(--faint)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
+                    title="Clicca per caricare foto profilo"
+                  >
                     {emp.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')}
-                  </span>
+                    {emp.hasAvatar && (
+                      <img
+                        src={`/api/employees/${emp.id}/avatar`}
+                        alt=""
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                      />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={(e) => handleAvatarUpload(emp.id, e.target.files?.[0])}
+                    />
+                  </label>
                   <span className="emp-id">
                     <input
                       className="emp-edit nm"
@@ -454,6 +565,13 @@ export default function App() {
     setScreen('login')
   }
 
+  const changeView = (newView) => {
+    if (newView !== view) {
+      api.logEvent('Vista cambiata', { da: view, a: newView })
+    }
+    setView(newView)
+  }
+
   // Salvataggio dalla modale attività
   const handleModalSave = async (empId, dateStr, activities, absenceType) => {
     await api.putEntries(empId, dateStr, activities)
@@ -462,7 +580,10 @@ export default function App() {
     setModal(null)
   }
 
-  const openModal = (emp, dep, d) => setModal({ emp, dep, date: d || date })
+  const openModal = (emp, dep, d) => {
+    api.logEvent('Modale attività aperta', { dipendente: emp.name, data: d || date })
+    setModal({ emp, dep, date: d || date })
+  }
   const pickDay = (d) => { setDate(d); setView('day') }
   const goToday = () => { setView('day'); setDate(todayISO()); setPage('calendar') }
 
@@ -479,11 +600,12 @@ export default function App() {
   return (
     <div className="app">
       <Topbar
-        view={view} setView={setView}
+        view={view} setView={changeView}
         date={date} setDate={setDate}
         page={page}
-        onSettings={() => setPage('settings')}
-        onAccount={() => setPage('account')}
+        onSettings={() => { api.logEvent('Pagina aperta', { pagina: 'Impostazioni' }); setPage('settings') }}
+        onLog={() => { api.logEvent('Pagina aperta', { pagina: 'Log' }); setPage('log') }}
+        onAccount={() => { api.logEvent('Pagina aperta', { pagina: 'Account' }); setPage('account') }}
         onCalendar={() => setPage('calendar')}
         onToday={goToday}
         onLogout={handleLogout}
@@ -493,6 +615,8 @@ export default function App() {
         <div className="body"><Settings data={data} onReload={onReload} /></div>
       ) : page === 'account' ? (
         <div className="body"><Account onBack={() => setPage('calendar')} /></div>
+      ) : page === 'log' ? (
+        <div className="body"><LogViewer /></div>
       ) : (
         <div className="body">
           <div className="wrap">

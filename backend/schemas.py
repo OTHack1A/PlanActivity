@@ -67,6 +67,7 @@ class EmployeeOut(BaseModel):
     role: str
     departmentId: str
     overtime: str
+    hasAvatar: bool = False
 
 
 # --- Entries ---
@@ -89,3 +90,10 @@ class PutAbsenceIn(BaseModel):
 class EntriesOut(BaseModel):
     entries: dict
     absences: dict
+
+
+# --- Log ---
+
+class LogEventIn(BaseModel):
+    action: str
+    details: dict = {}

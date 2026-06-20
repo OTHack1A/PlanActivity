@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models, schemas
 from ..auth import verify_password, hash_password, current_account
+from ..logging_config import get_logger
 
 router = APIRouter(prefix="/api/account", tags=["account"])
 
@@ -20,4 +21,5 @@ def change_password(
         raise HTTPException(status_code=422, detail="La nuova password non può essere vuota")
     acc.password_hash = hash_password(new_pass)
     db.commit()
+    get_logger().info(f"Password modificata: utente '{acc.user}'")
     return {"ok": True}

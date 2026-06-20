@@ -1,0 +1,32 @@
+from fastapi import APIRouter, Depends, Query
+from .. import models, schemas
+from ..auth import current_account
+from ..logging_config import LOG_FILE, get_logger
+
+router = APIRouter(prefix="/api/log", tags=["log"])
+
+
+@router.post("/event", status_code=204)
+def log_frontend_event(
+    body: schemas.LogEventIn,
+    _: models.Account = Depends(current_account),
+):
+    logger = get_logger()
+    details_str = (
+        " — " + ", ".join(f"{k}={v}" for k, v in body.details.items())
+        if body.details
+        else ""
+    )
+    logger.info(f"[UI] {body.action}{details_str}")
+
+
+@router.get("")
+def get_log(
+    lines: int = Query(500, ge=1, le=5000),
+    _: models.Account = Depends(current_account),
+):
+    if not LOG_FILE.exists():
+        return {"lines": []}
+    with open(LOG_FILE, encoding="utf-8") as f:
+        all_lines = f.readlines()
+    return {"lines": [ln.rstrip() for ln in all_lines[-lines:]]}

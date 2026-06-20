@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models, schemas
 from ..auth import current_account
+from ..logging_config import get_logger
 
 router = APIRouter(prefix="/api/departments", tags=["departments"])
 
@@ -25,6 +26,7 @@ def create_department(
     db.add(dep)
     db.commit()
     db.refresh(dep)
+    get_logger().info(f"Reparto creato: '{dep.name}' (colore: {dep.color})")
     return dep
 
 
@@ -37,5 +39,7 @@ def delete_department(
     dep = db.get(models.Department, dep_id)
     if not dep:
         raise HTTPException(status_code=404, detail="Reparto non trovato")
+    n_emp = len(dep.employees)
+    get_logger().info(f"Reparto eliminato: '{dep.name}' (con {n_emp} dipendenti)")
     db.delete(dep)
     db.commit()

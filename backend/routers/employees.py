@@ -1,11 +1,24 @@
 import re
-from fastapi import APIRouter, Depends, HTTPException
+from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models, schemas
 from ..auth import current_account
+from ..logging_config import get_logger
 
 router = APIRouter(prefix="/api/employees", tags=["employees"])
+
+AVATAR_DIR = Path(__file__).parent.parent.parent / "data" / "avatars"
+
+_ALLOWED_EXTS = {"jpg", "jpeg", "png", "webp"}
+_MEDIA_TYPES = {
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "webp": "image/webp",
+}
 
 
 def _normalize_overtime(raw: str) -> float:
@@ -28,6 +41,10 @@ def _overtime_str(val: float) -> str:
     return s.rstrip("0").rstrip(".")
 
 
+def _has_avatar(emp_id: str) -> bool:
+    return AVATAR_DIR.exists() and any(AVATAR_DIR.glob(f"{emp_id}.*"))
+
+
 def _to_out(emp: models.Employee) -> schemas.EmployeeOut:
     return schemas.EmployeeOut(
         id=emp.id,
@@ -35,6 +52,7 @@ def _to_out(emp: models.Employee) -> schemas.EmployeeOut:
         role=emp.role,
         departmentId=emp.department_id,
         overtime=_overtime_str(emp.overtime_hours),
+        hasAvatar=_has_avatar(emp.id),
     )
 
 
@@ -53,7 +71,8 @@ def create_employee(
     db: Session = Depends(get_db),
     _: models.Account = Depends(current_account),
 ):
-    if not db.get(models.Department, body.departmentId):
+    dep = db.get(models.Department, body.departmentId)
+    if not dep:
         raise HTTPException(status_code=404, detail="Reparto non trovato")
     emp = models.Employee(
         name=body.name.strip(),
@@ -64,6 +83,7 @@ def create_employee(
     db.add(emp)
     db.commit()
     db.refresh(emp)
+    get_logger().info(f"Dipendente creato: '{emp.name}' (reparto: {dep.name})")
     return _to_out(emp)
 
 
@@ -77,18 +97,28 @@ def patch_employee(
     emp = db.get(models.Employee, emp_id)
     if not emp:
         raise HTTPException(status_code=404, detail="Dipendente non trovato")
-    if body.name is not None:
+    changes = []
+    if body.name is not None and body.name.strip() != emp.name:
+        changes.append(f"nome: '{emp.name}' → '{body.name.strip()}'")
         emp.name = body.name.strip()
-    if body.role is not None:
+    if body.role is not None and body.role.strip() != emp.role:
+        changes.append(f"mansione: '{emp.role}' → '{body.role.strip()}'")
         emp.role = body.role.strip()
-    if body.departmentId is not None:
-        if not db.get(models.Department, body.departmentId):
+    if body.departmentId is not None and body.departmentId != emp.department_id:
+        dep = db.get(models.Department, body.departmentId)
+        if not dep:
             raise HTTPException(status_code=404, detail="Reparto non trovato")
+        changes.append(f"reparto → '{dep.name}'")
         emp.department_id = body.departmentId
     if body.overtime is not None:
-        emp.overtime_hours = _normalize_overtime(body.overtime)
+        new_ot = _normalize_overtime(body.overtime)
+        if new_ot != emp.overtime_hours:
+            changes.append(f"straordinario: {_overtime_str(emp.overtime_hours) or '0'} → {_overtime_str(new_ot) or '0'} h")
+            emp.overtime_hours = new_ot
     db.commit()
     db.refresh(emp)
+    if changes:
+        get_logger().info(f"Dipendente modificato: '{emp.name}' — {', '.join(changes)}")
     return _to_out(emp)
 
 
@@ -101,5 +131,63 @@ def delete_employee(
     emp = db.get(models.Employee, emp_id)
     if not emp:
         raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    get_logger().info(f"Dipendente eliminato: '{emp.name}'")
+    for old in AVATAR_DIR.glob(f"{emp_id}.*") if AVATAR_DIR.exists() else []:
+        old.unlink(missing_ok=True)
     db.delete(emp)
     db.commit()
+
+
+# --- Avatar ---
+
+@router.post("/{emp_id}/avatar", status_code=204)
+async def upload_avatar(
+    emp_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: models.Account = Depends(current_account),
+):
+    emp = db.get(models.Employee, emp_id)
+    if not emp:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=400, detail="Il file deve essere un'immagine")
+    content = await file.read()
+    if len(content) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Immagine troppo grande (max 2 MB)")
+    ext = ""
+    if file.filename and "." in file.filename:
+        ext = file.filename.rsplit(".", 1)[-1].lower()
+    if ext not in _ALLOWED_EXTS:
+        ext = "jpg"
+    AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+    for old in AVATAR_DIR.glob(f"{emp_id}.*"):
+        old.unlink(missing_ok=True)
+    (AVATAR_DIR / f"{emp_id}.{ext}").write_bytes(content)
+    get_logger().info(f"Avatar aggiornato: dipendente '{emp.name}'")
+
+
+@router.get("/{emp_id}/avatar")
+def get_avatar(emp_id: str, db: Session = Depends(get_db)):
+    emp = db.get(models.Employee, emp_id)
+    if not emp:
+        raise HTTPException(status_code=404)
+    if AVATAR_DIR.exists():
+        for f in AVATAR_DIR.glob(f"{emp_id}.*"):
+            return FileResponse(f, media_type=_MEDIA_TYPES.get(f.suffix[1:].lower(), "image/jpeg"))
+    raise HTTPException(status_code=404, detail="Avatar non presente")
+
+
+@router.delete("/{emp_id}/avatar", status_code=204)
+def delete_avatar(
+    emp_id: str,
+    db: Session = Depends(get_db),
+    _: models.Account = Depends(current_account),
+):
+    emp = db.get(models.Employee, emp_id)
+    if not emp:
+        raise HTTPException(status_code=404)
+    if AVATAR_DIR.exists():
+        for f in AVATAR_DIR.glob(f"{emp_id}.*"):
+            f.unlink(missing_ok=True)
+    get_logger().info(f"Avatar rimosso: dipendente '{emp.name}'")

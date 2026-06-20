@@ -477,3 +477,30 @@ td.col-emp { background: var(--surface-solid); z-index: 1; }
 select option { background: var(--elevated); color: var(--text); }
 .login-hint { margin-top: 18px; text-align: center; font-size: 12px; color: var(--faint); }
 .login-hint b { color: var(--accent-ink); font-family: var(--mono); }
+
+/* ---------- log viewer ---------- */
+.log-header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 6px; }
+.log-header h1 { margin: 0; font-size: 23px; font-weight: 600; letter-spacing: -0.01em; }
+.log-meta { margin: 0 0 16px; font-size: 12px; color: var(--faint); letter-spacing: 0.02em; }
+.log-loading { color: var(--muted); font-size: 13px; padding: 24px 0; }
+.log-viewer {
+  background: oklch(0.15 0.04 252);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  height: calc(100vh - 240px);
+  min-height: 300px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.log-line { word-break: break-all; padding: 1px 0; }
+.log-info { color: var(--muted); }
+.log-warn { color: oklch(0.82 0.18 60); }
+.log-err  { color: oklch(0.72 0.2 25); }
+.log-empty { color: var(--faint); text-align: center; padding: 40px 0; }
+
+/* avatar upload label in settings */
+.avatar-upload { display: flex; align-items: center; justify-content: center; }
+.avatar-upload:hover { filter: brightness(1.18); outline: 2px solid var(--accent-line); }
