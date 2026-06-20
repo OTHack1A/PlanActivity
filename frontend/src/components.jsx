@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, Fragment } from 'react'
 import {
   todayISO, addDays, addMonths, fromISO,
   fmtLong, fmtMonthYear, fmtWeekday, fmtDayNum,
@@ -176,8 +176,8 @@ export function WeekView({ data, date, onOpenDate }) {
         <tbody>
           {groups.map(({ dep, list }) =>
             list.length === 0 ? null : (
-              <>
-                <tr key={dep.id} className="dept-row">
+              <Fragment key={dep.id}>
+                <tr className="dept-row">
                   <td colSpan={8}>
                     <span className="swatch" style={{ background: dep.color }}></span>
                     {dep.name}
@@ -219,7 +219,7 @@ export function WeekView({ data, date, onOpenDate }) {
                     })}
                   </tr>
                 ))}
-              </>
+              </Fragment>
             )
           )}
         </tbody>
