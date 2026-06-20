@@ -71,7 +71,18 @@ export const putAbsence = (empId, date, type) =>
 
 // --- Log ---
 export const getLog = (lines = 500) => req(`/log?lines=${lines}`)
+
 export const logEvent = (action, details = {}) => {
   if (!_token) return Promise.resolve()
   return req('/log/event', { method: 'POST', body: JSON.stringify({ action, details }) }).catch(() => {})
+}
+
+/** Evento pre-login (senza JWT). NON passare mai campi password. */
+export const logPublicEvent = (action) => {
+  if (!action) return Promise.resolve()
+  return fetch('/api/log/public-event', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: String(action) }),
+  }).catch(() => {})
 }

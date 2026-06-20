@@ -103,3 +103,7 @@ class EntriesOut(BaseModel):
 class LogEventIn(BaseModel):
     action: str
     details: dict = {}
+
+
+class LogPublicEventIn(BaseModel):
+    action: str = ""

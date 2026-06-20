@@ -9,7 +9,7 @@ import { Topbar, DayView, WeekView, MonthView, YearView, ActivityModal } from '.
 // ---------------------------------------------------------------------------
 // Campo password "stile Linux": nessun carattere visibile mentre si digita
 // ---------------------------------------------------------------------------
-function PwInput({ value, onChange, className, autoFocus }) {
+function PwInput({ value, onChange, onBlur, className, autoFocus }) {
   const onKey = (e) => {
     if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'Escape') return
     if (e.metaKey || e.ctrlKey || e.altKey) return
@@ -28,6 +28,7 @@ function PwInput({ value, onChange, className, autoFocus }) {
       onChange={() => {}}
       onKeyDown={onKey}
       onPaste={onPaste}
+      onBlur={onBlur}
       className={className}
       autoFocus={autoFocus}
       autoComplete="off"
@@ -54,11 +55,13 @@ function Register({ onRegister }) {
   const submit = async (e) => {
     e.preventDefault()
     if (!valid) return
+    api.logPublicEvent(`Registrazione: pulsante 'Registra' premuto — utente='${user.trim()}', azienda='${company.trim()}'`)
     try {
       const { access_token } = await api.register(user.trim(), pass, company.trim())
       api.setToken(access_token)
       onRegister()
     } catch (err) {
+      api.logPublicEvent(`Registrazione fallita: ${err.message}`)
       setError(err.message)
     }
   }
@@ -77,21 +80,37 @@ function Register({ onRegister }) {
             autoFocus
             value={company}
             onChange={(e) => setCompany(e.target.value)}
+            onBlur={() => company.trim() && api.logPublicEvent(`Registrazione: campo 'Nome azienda' compilato — '${company.trim()}'`)}
             placeholder="Es. Autofficina Rossi"
             autoComplete="organization"
           />
         </label>
         <label className="fld">
           <span>Utente</span>
-          <input value={user} onChange={(e) => setUser(e.target.value)} autoComplete="username" />
+          <input
+            value={user}
+            onChange={(e) => setUser(e.target.value)}
+            onBlur={() => user.trim() && api.logPublicEvent(`Registrazione: campo 'Utente' compilato — '${user.trim()}'`)}
+            autoComplete="username"
+          />
         </label>
         <label className="fld">
           <span>Password</span>
-          <PwInput value={pass} onChange={setPass} />
+          {/* Il valore della password non viene mai loggato */}
+          <PwInput
+            value={pass}
+            onChange={setPass}
+            onBlur={() => pass.length > 0 && api.logPublicEvent("Registrazione: campo 'Password' compilato")}
+          />
         </label>
         <label className="fld">
           <span>Ripeti password</span>
-          <PwInput value={pass2} onChange={setPass2} className={mismatch ? 'bad' : ''} />
+          <PwInput
+            value={pass2}
+            onChange={setPass2}
+            onBlur={() => pass2.length > 0 && api.logPublicEvent(`Registrazione: campo 'Ripeti password' compilato — ${mismatch ? 'NON coincide' : 'coincide'}`)}
+            className={mismatch ? 'bad' : ''}
+          />
         </label>
         {mismatch && <div className="fld-note">Le password non coincidono.</div>}
         {error && <div className="fld-note">{error}</div>}
@@ -111,11 +130,13 @@ function Login({ onLogin }) {
 
   const submit = async (e) => {
     e.preventDefault()
+    api.logPublicEvent(`Login: pulsante 'Accedi' premuto — utente='${user.trim()}'`)
     try {
       const { access_token } = await api.login(user.trim(), pass)
       api.setToken(access_token)
       onLogin()
     } catch {
+      api.logPublicEvent(`Login: tentativo fallito — utente='${user.trim()}'`)
       setUser('')
       setPass('')
       setShake(true)
@@ -133,11 +154,22 @@ function Login({ onLogin }) {
         <p className="login-lead">Inserisci le credenziali per continuare.</p>
         <label className="fld">
           <span>Utente</span>
-          <input autoFocus value={user} onChange={(e) => setUser(e.target.value)} autoComplete="username" />
+          <input
+            autoFocus
+            value={user}
+            onChange={(e) => setUser(e.target.value)}
+            onBlur={() => user.trim() && api.logPublicEvent(`Login: campo 'Utente' compilato — '${user.trim()}'`)}
+            autoComplete="username"
+          />
         </label>
         <label className="fld">
           <span>Password</span>
-          <PwInput value={pass} onChange={setPass} />
+          {/* Il valore della password non viene mai loggato */}
+          <PwInput
+            value={pass}
+            onChange={setPass}
+            onBlur={() => pass.length > 0 && api.logPublicEvent("Login: campo 'Password' compilato")}
+          />
         </label>
         <button type="submit" className="login-btn">Entra nel sistema →</button>
       </form>

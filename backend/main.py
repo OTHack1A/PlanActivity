@@ -1,6 +1,7 @@
 import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
+from sqlalchemy import inspect as sa_inspect, text
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -9,21 +10,35 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
 from .routers import auth, account, departments, employees, entries
 from .routers import log as log_router
-from .logging_config import setup_logging
+from .logging_config import setup_logging, get_logger
+
+
+def _migrate_schema(eng) -> None:
+    """Aggiunge colonne mancanti su DB esistenti senza perdere dati (SQLite ADD COLUMN)."""
+    logger = get_logger()
+    insp = sa_inspect(eng)
+    existing_tables = set(insp.get_table_names())
+    with eng.connect() as conn:
+        if "accounts" in existing_tables:
+            cols = {c["name"] for c in insp.get_columns("accounts")}
+            if "company" not in cols:
+                conn.execute(text("ALTER TABLE accounts ADD COLUMN company VARCHAR DEFAULT ''"))
+                conn.commit()
+                logger.info("Schema migrato: aggiunta colonna 'company' alla tabella accounts")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger = setup_logging()
+    setup_logging()
     Base.metadata.create_all(bind=engine)
-    logger.info("Applicazione Pianifica avviata")
+    _migrate_schema(engine)
+    get_logger().info("Applicazione Pianifica avviata")
     yield
-    logger.info("Applicazione Pianifica arrestata")
+    get_logger().info("Applicazione Pianifica arrestata")
 
 
-app = FastAPI(title="Pianifica API", lifespan=lifespan)
+app = FastAPI(title="Pianifica API", lifespan=lifespan, docs_url=None, redoc_url=None)
 
-# CORS solo per sviluppo (Vite gira su :5173)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -42,7 +57,6 @@ app.include_router(log_router.router)
 
 @app.exception_handler(RequestValidationError)
 async def validation_handler(request: Request, exc: RequestValidationError):
-    from .logging_config import get_logger
     get_logger().warning(
         f"Validazione fallita: {request.method} {request.url.path} — {exc.errors()}"
     )
@@ -51,7 +65,6 @@ async def validation_handler(request: Request, exc: RequestValidationError):
 
 @app.exception_handler(Exception)
 async def global_error_handler(request: Request, exc: Exception):
-    from .logging_config import get_logger
     get_logger().error(
         f"Errore non gestito: {request.method} {request.url.path} — "
         f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
