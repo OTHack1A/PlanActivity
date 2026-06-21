@@ -1,9 +1,7 @@
 import logging
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
-
-LOG_FILE = Path(__file__).parent.parent / "pianifica.log"
+from ._paths import LOG_FILE
 
 
 class _Fmt(logging.Formatter):

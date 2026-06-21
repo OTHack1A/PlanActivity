@@ -1,5 +1,4 @@
 import re
-from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -7,10 +6,11 @@ from ..database import get_db
 from .. import models, schemas
 from ..auth import current_account
 from ..logging_config import get_logger
+from .._paths import DATA_DIR
 
 router = APIRouter(prefix="/api/employees", tags=["employees"])
 
-AVATAR_DIR = Path(__file__).parent.parent.parent / "data" / "avatars"
+AVATAR_DIR = DATA_DIR / "avatars"
 
 _ALLOWED_EXTS = {"jpg", "jpeg", "png", "webp"}
 _MEDIA_TYPES = {

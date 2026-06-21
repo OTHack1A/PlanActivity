@@ -1,13 +1,14 @@
+import sys
 from pathlib import Path
-
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from ..logging_config import get_logger
+from .._paths import DATA_DIR, RUNTIME_ROOT
 
 router = APIRouter(prefix="/api/logo", tags=["logo"])
 
-_DATA_DIR  = Path(__file__).parent.parent.parent / "data"
+_DATA_DIR = DATA_DIR
 _MAX_BYTES = 2 * 1024 * 1024
 _ALLOWED   = {"jpg", "jpeg", "png", "webp"}
 
@@ -46,9 +47,12 @@ def _custom_logo() -> Path | None:
 
 
 def _default_logo() -> Path | None:
+    # In a frozen exe, the bundled frontend/dist is inside sys._MEIPASS.
+    meipass = Path(getattr(sys, "_MEIPASS", ""))
     for candidate in (
-        Path(__file__).parent.parent.parent / "frontend" / "public" / "logo.jpg",
-        Path(__file__).parent.parent.parent / "frontend" / "dist"   / "logo.jpg",
+        meipass / "frontend" / "dist" / "logo.jpg",
+        RUNTIME_ROOT / "frontend" / "public" / "logo.jpg",
+        RUNTIME_ROOT / "frontend" / "dist" / "logo.jpg",
     ):
         if candidate.exists():
             return candidate

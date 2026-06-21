@@ -1,12 +1,11 @@
 import os
-from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from dotenv import load_dotenv
+from ._paths import DATA_DIR
 
 load_dotenv()
 
-DATA_DIR = Path(__file__).parent.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR / 'pianifica.db'}")
 

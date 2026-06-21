@@ -1,7 +1,6 @@
 import os
 import hmac as _hmac
 import secrets
-from pathlib import Path
 from types import SimpleNamespace
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
@@ -12,8 +11,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from .database import get_db
 from . import models
+from ._paths import DATA_DIR
 
-_SECRET_FILE = Path(__file__).parent.parent / "data" / ".secret"
+_SECRET_FILE = DATA_DIR / ".secret"
 
 
 def _load_secret() -> str:
