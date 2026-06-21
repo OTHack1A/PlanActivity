@@ -85,7 +85,51 @@ Open **http://localhost:5173** — the first visit shows the registration screen
 
 ---
 
-## 3. Running in production (single process)
+## 3. Windows standalone executable (company deployment)
+
+The easiest way to deploy on a Windows workstation — no Python or Node
+installation required.
+
+### Build the exe (one-time, on a machine with the dev environment)
+
+```powershell
+# Activate venv and build
+.venv\Scripts\Activate.ps1
+pyinstaller pianifica.spec
+```
+
+The output is `dist\pianifica.exe` (~27 MB, self-contained).
+
+### Deploy
+
+1. Copy **only** `dist\pianifica.exe` to any folder (e.g. `C:\Pianifica\`)
+2. Double-click to launch — **no console window appears**; the app runs in the
+   background
+3. Open **http://127.0.0.1:16853** in any browser
+
+On first launch the app automatically creates:
+
+```
+C:\Pianifica\
+├── pianifica.exe
+├── pianifica.log          ← runtime log (10 MB × 5 rotating)
+└── data\
+    ├── pianifica.db       ← SQLite database
+    └── .secret            ← JWT signing key (auto-generated)
+```
+
+### Stopping the app
+
+Open Task Manager → find **pianifica.exe** → End Task.
+Or from PowerShell: `Stop-Process -Name pianifica -Force`
+
+### Updating
+
+Replace `pianifica.exe` with the new build (the `data\` folder is untouched).
+
+---
+
+## 4. Running in production (single process, Linux/server)
 
 After running `npm run build` once, the backend serves everything:
 
@@ -102,7 +146,7 @@ Open **http://<server-ip>:8000**.
 
 ---
 
-## 4. Running as a systemd service (Linux)
+## 5. Running as a systemd service (Linux)
 
 Create `/etc/systemd/system/pianifica.service`:
 
@@ -131,7 +175,7 @@ sudo systemctl status pianifica
 
 ---
 
-## 5. Reverse proxy with nginx (recommended for production)
+## 6. Reverse proxy with nginx (recommended for production)
 
 Place nginx in front so it handles TLS and serves static files efficiently.
 
@@ -191,7 +235,7 @@ app.add_middleware(CORSMiddleware, allow_origins=_origins, ...)
 
 ---
 
-## 6. Updating an existing installation
+## 7. Updating an existing installation
 
 ```bash
 cd /opt/pianifica
@@ -219,7 +263,7 @@ sudo systemctl restart pianifica
 
 ---
 
-## 7. GitHub repository setup
+## 8. GitHub repository setup
 
 ### Push for the first time
 
@@ -235,7 +279,12 @@ git push -u origin master
 |---|---|---|
 | `backend/` | Yes | application code |
 | `frontend/src/` | Yes | source code |
+| `run.py` | Yes | exe entry point |
+| `pianifica.spec` | Yes | PyInstaller build config |
+| `logo.ico` | Yes | exe icon |
 | `frontend/dist/` | **No** | generated build (gitignored) |
+| `build/` | **No** | PyInstaller temp (gitignored) |
+| `dist/` | **No** | compiled exe (gitignored) |
 | `data/pianifica.db` | **No** | instance data |
 | `data/avatars/` | **No** | user uploads |
 | `data/logo.*` | **No** | custom logo |
@@ -249,7 +298,7 @@ everything that is not committed.
 
 ---
 
-## 8. Persisted data and backup
+## 9. Persisted data and backup
 
 Everything instance-specific lives under `data/`:
 
@@ -275,7 +324,7 @@ Add to cron: `0 2 * * * /opt/pianifica/backup.sh`
 
 ---
 
-## 9. Environment variables
+## 10. Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
@@ -293,7 +342,7 @@ export PIANIFICA_MASTER_PASS="change-this-in-production"
 
 ---
 
-## 10. First run checklist
+## 11. First run checklist
 
 - [ ] Backend starts without errors (`uvicorn` output shows "Applicazione Pianifica avviata")
 - [ ] Opening the URL shows the registration screen (or login if already registered)
@@ -305,7 +354,7 @@ export PIANIFICA_MASTER_PASS="change-this-in-production"
 
 ---
 
-## 11. Security checklist for production
+## 12. Security checklist for production
 
 - [ ] Set a strong `PIANIFICA_SECRET` (≥ 64 random hex chars: `python -c "import secrets; print(secrets.token_hex(32))"`)
 - [ ] Change `PIANIFICA_MASTER_PASS` from the default `Melo82`

@@ -5,25 +5,36 @@ Used as the PyInstaller entry point: `pyinstaller pianifica.spec`
 Also runnable directly: `python run.py`
 """
 import multiprocessing
+import os
 import sys
 
 
+def _silence_stdio() -> None:
+    """In windowed (no-console) mode stdout/stderr are None — redirect to devnull."""
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w")
+
+
 def main() -> None:
+    _silence_stdio()
+
     import uvicorn
     from backend.main import app
+    from backend.logging_config import get_logger
 
     host = "127.0.0.1"
-    port = 8000
+    port = 16853
 
-    print(f"")
-    print(f"  Pianifica  —  http://{host}:{port}")
-    print(f"  Premi Ctrl+C per uscire.")
-    print(f"")
-
-    uvicorn.run(app, host=host, port=port, log_level="warning")
+    get_logger().info(f"Pianifica in ascolto su http://{host}:{port}")
+    try:
+        uvicorn.run(app, host=host, port=port, log_level="warning")
+    except Exception as exc:
+        get_logger().critical(f"Errore avvio server: {exc}", exc_info=True)
+        raise
 
 
 if __name__ == "__main__":
-    # freeze_support() is required for --onefile multiprocessing on Windows
     multiprocessing.freeze_support()
     main()

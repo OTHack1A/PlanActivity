@@ -105,11 +105,11 @@ exe = EXE(
     upx=False,          # UPX disabled for reliability
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,       # Console window shows startup message and log
+    console=False,      # No DOS window — runs silently in background
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon="logo.ico",    # Custom icon (6 sizes: 16–256 px)
 )
