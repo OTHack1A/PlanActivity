@@ -11,8 +11,8 @@ class RegisterIn(BaseModel):
 
 
 class LoginIn(BaseModel):
-    user: str
-    password: str
+    user: str = Field(max_length=50)
+    password: str = Field(max_length=128)
 
 
 class TokenOut(BaseModel):
@@ -39,8 +39,8 @@ class AccountOut(BaseModel):
 # --- Department ---
 
 class DepartmentIn(BaseModel):
-    name: str
-    color: str
+    name: str = Field(max_length=80)
+    color: str = Field(max_length=30)
 
 
 class DepartmentOut(BaseModel):
@@ -54,17 +54,17 @@ class DepartmentOut(BaseModel):
 # --- Employee ---
 
 class EmployeeIn(BaseModel):
-    name: str
-    role: str = ""
-    departmentId: str
-    overtime: str = ""
+    name: str = Field(max_length=80)
+    role: str = Field(default="", max_length=80)
+    departmentId: str = Field(max_length=20)
+    overtime: str = Field(default="", max_length=10)
 
 
 class EmployeePatch(BaseModel):
-    name: Optional[str] = None
-    role: Optional[str] = None
-    departmentId: Optional[str] = None
-    overtime: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=80)
+    role: Optional[str] = Field(default=None, max_length=80)
+    departmentId: Optional[str] = Field(default=None, max_length=20)
+    overtime: Optional[str] = Field(default=None, max_length=10)
 
 
 class EmployeeOut(BaseModel):
@@ -79,10 +79,10 @@ class EmployeeOut(BaseModel):
 # --- Entries ---
 
 class ActivityItem(BaseModel):
-    id: str
-    activity: str
+    id: str = Field(max_length=40)
+    activity: str = Field(max_length=200)
     hours: float
-    notes: str = ""
+    notes: str = Field(default="", max_length=1000)
 
 
 class PutEntriesIn(BaseModel):
@@ -101,10 +101,10 @@ class EntriesOut(BaseModel):
 # --- Log ---
 
 class LogEventIn(BaseModel):
-    message: str = ""   # new: pre-formatted translated string
-    action: str = ""    # legacy: raw action name
-    details: dict = {}  # legacy: structured details
+    message: str = Field(default="", max_length=500)
+    action: str = Field(default="", max_length=200)
+    details: dict = {}
 
 
 class LogPublicEventIn(BaseModel):
-    action: str = ""
+    action: str = Field(default="", max_length=200)

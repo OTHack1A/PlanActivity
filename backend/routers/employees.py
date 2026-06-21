@@ -20,6 +20,20 @@ _MEDIA_TYPES = {
     "webp": "image/webp",
 }
 
+_MAGIC: list[tuple[bytes, str]] = [
+    (b"\xff\xd8\xff",        "jpg"),
+    (b"\x89PNG\r\n\x1a\n",  "png"),
+]
+
+
+def _detect_image_ext(data: bytes) -> str | None:
+    for sig, ext in _MAGIC:
+        if data[: len(sig)] == sig:
+            return ext
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    return None
+
 
 def _normalize_overtime(raw: str) -> float:
     if not raw:
@@ -151,15 +165,16 @@ async def upload_avatar(
     if not emp:
         raise HTTPException(status_code=404, detail="Dipendente non trovato")
     if not (file.content_type or "").startswith("image/"):
-        raise HTTPException(status_code=400, detail="Il file deve essere un'immagine")
+        raise HTTPException(status_code=415, detail="Il file deve essere un'immagine")
     content = await file.read()
     if len(content) > 2 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Immagine troppo grande (max 2 MB)")
-    ext = ""
-    if file.filename and "." in file.filename:
-        ext = file.filename.rsplit(".", 1)[-1].lower()
-    if ext not in _ALLOWED_EXTS:
-        ext = "jpg"
+        raise HTTPException(status_code=413, detail="Immagine troppo grande (max 2 MB)")
+    ext = _detect_image_ext(content)
+    if ext is None:
+        raise HTTPException(
+            status_code=415,
+            detail="Formato immagine non riconosciuto (usa JPG, PNG o WebP)",
+        )
     AVATAR_DIR.mkdir(parents=True, exist_ok=True)
     for old in AVATAR_DIR.glob(f"{emp_id}.*"):
         old.unlink(missing_ok=True)
