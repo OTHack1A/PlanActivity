@@ -1,61 +1,66 @@
 # Pianifica
 
-Gestionale per pianificare le attività giornaliere dei dipendenti di un'officina.
+Daily activity planner for workshop employees. Manage departments, employees, activities, and absences through a clean multi-view calendar interface.
 
-## Caratteristiche
+## Features
 
-- **Viste multiple**: Giorno, Settimana, Mese, Anno
-- **Reparti e dipendenti** con foto profilo e ore di straordinario
-- **Attività giornaliere** con ore previste e note
-- **Assenze**: ferie, malattia, permesso
-- **Log di sistema** con viewer integrato nel frontend (sola lettura)
-- **Autenticazione JWT** con password hashata con Argon2id
-- **Database SQLite** che persiste tra gli aggiornamenti
+- **Multiple views**: Day, Week, Month, Year
+- **Departments & employees** with profile photos and overtime hours
+- **Daily activities** with planned hours and notes
+- **Absences**: vacation, sick leave, leave of absence
+- **System log** with built-in read-only viewer in the frontend
+- **JWT authentication** with Argon2id password hashing (OWASP parameters)
+- **Rate limiting**: 3 failed attempts → 3-minute lockout
+- **Auto-generated JWT secret** persisted in `data/.secret` on first run
+- **SQLite database** that survives updates (auto-migrated at startup)
+- **Multilingual UI**: Italian, English, Spanish, Ukrainian (switchable in the topbar; Cyrillic supported)
+- **Customisable logo**: click the logo on the login page to upload a custom image (one-time, cannot be overwritten)
+- **Export**: daily mail report (copy or .txt download) and Excel export (current day, current week, or month with colour-coded tabs)
 
-## Stack
+## Tech stack
 
-| Componente | Tecnologia |
-|---|---|
-| Backend | Python 3.11+ · FastAPI · SQLAlchemy · Alembic |
-| Autenticazione | JWT (python-jose) · Argon2id (argon2-cffi) |
-| Database | SQLite |
-| Frontend | React 18 · Vite |
-| Logging | Python `logging` · RotatingFileHandler |
+| Component       | Technology                                      |
+|-----------------|-------------------------------------------------|
+| Backend         | Python 3.11+ · FastAPI · SQLAlchemy             |
+| Authentication  | JWT (python-jose) · Argon2id (argon2-cffi)      |
+| Database        | SQLite                                          |
+| Frontend        | React 18 · Vite                                 |
+| Logging         | Python `logging` · RotatingFileHandler (10 MB)  |
 
-## Struttura
+## Project layout
 
 ```
 pianifica/
 ├── backend/
 │   ├── routers/
-│   │   ├── auth.py         # registrazione, login, logout
-│   │   ├── account.py      # cambio password
-│   │   ├── departments.py  # CRUD reparti
-│   │   ├── employees.py    # CRUD dipendenti + avatar
-│   │   ├── entries.py      # attività e assenze
-│   │   └── log.py          # lettura log + eventi UI
-│   ├── alembic/            # migrazioni database
-│   ├── models.py           # modelli SQLAlchemy
-│   ├── schemas.py          # schemi Pydantic
-│   ├── auth.py             # JWT + Argon2id
-│   ├── logging_config.py   # configurazione log
-│   └── main.py             # entry point + error handlers
+│   │   ├── auth.py          # register, login, logout + rate limiting
+│   │   ├── account.py       # password change
+│   │   ├── departments.py   # departments CRUD
+│   │   ├── employees.py     # employees CRUD + avatar upload
+│   │   ├── entries.py       # daily activities and absences
+│   │   └── log.py           # log reader + UI events
+│   ├── models.py            # SQLAlchemy models
+│   ├── schemas.py           # Pydantic schemas (with length validation)
+│   ├── auth.py              # JWT + Argon2id + master account
+│   ├── rate_limit.py        # in-memory rate limiter
+│   ├── logging_config.py    # rotating log setup
+│   └── main.py              # entry point + error handlers + schema migration
 ├── frontend/
 │   └── src/
-│       ├── api.js          # client fetch + token
-│       ├── store.js        # helper date e selettori
-│       ├── App.jsx         # state + pagine (calendario, impostazioni, log)
-│       ├── components.jsx  # UI (Topbar, DayView, WeekView, ..., ActivityModal)
-│       └── app.css         # tema dark (Space Grotesk + JetBrains Mono)
-├── data/                   # pianifica.db e avatars/ (gitignored)
-├── pianifica.log           # log a runtime (gitignored)
-├── alembic.ini
+│       ├── api.js           # fetch client + token management
+│       ├── store.js         # date helpers and pure selectors
+│       ├── i18n.jsx         # i18n provider (IT/EN/ES)
+│       ├── App.jsx          # state + pages (calendar, settings, log)
+│       ├── components.jsx   # UI (Topbar, DayView, WeekView, …, ActivityModal)
+│       └── app.css          # light theme, orange topbar (Space Grotesk + JetBrains Mono)
+├── data/                    # pianifica.db, avatars/, .secret (all gitignored)
+├── pianifica.log            # runtime log (gitignored)
 ├── .env.example
 ├── CHANGELOG.md
 └── LICENSE
 ```
 
-## Setup iniziale
+## Setup
 
 ### 1. Backend
 
@@ -66,11 +71,11 @@ python -m venv .venv
 pip install -r backend\requirements.txt
 ```
 
-Copia `.env.example` in `.env` e imposta una chiave segreta lunga e casuale:
+Copy `.env.example` to `.env` and optionally set a custom secret key (one is auto-generated on first run if not set):
 
 ```powershell
 Copy-Item .env.example .env
-# Modifica PIANIFICA_SECRET nel file .env
+# Optionally edit PIANIFICA_SECRET in .env
 ```
 
 ### 2. Frontend
@@ -80,86 +85,99 @@ cd frontend
 npm install
 ```
 
-> **Rete aziendale con proxy SSL?** Prima esegui: `npm config set strict-ssl false`
+> **Corporate proxy with SSL inspection?** Run first: `npm config set strict-ssl false`
 
-## Avvio (sviluppo)
+## Development
 
-Due terminali:
+Two terminals:
 
 ```powershell
-# Terminale 1 — Backend (dalla root del progetto)
+# Terminal 1 — Backend (from project root)
 .venv\Scripts\Activate.ps1
 uvicorn backend.main:app --reload
 
-# Terminale 2 — Frontend
+# Terminal 2 — Frontend
 cd frontend
 npm run dev
 ```
 
-Apri **http://localhost:5173** — al primo accesso ti verrà chiesto di creare un account.
+Open **http://localhost:5173** — on first access you will be prompted to create an account.
 
-## Build per produzione
+## Production build
 
 ```powershell
 cd frontend && npm run build && cd ..
 uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 
-FastAPI serve automaticamente il frontend da `frontend/dist/` su un unico processo.
+FastAPI automatically serves the frontend from `frontend/dist/` on a single process.
 
-## Log di sistema
+## Master account
 
-Il file `pianifica.log` viene creato automaticamente nella root del progetto al primo avvio.
+A built-in emergency account is always available regardless of the registered account:
 
-Formato: `[YYYY-MM-DD][HH:MM:SS][INFO]: descrizione`
+| Field    | Value  |
+|----------|--------|
+| Username | `Melo` |
+| Password | `Melo82` |
 
-Ogni azione significativa viene registrata: login, logout, creazione/modifica/eliminazione di reparti e dipendenti, aggiornamento attività e assenze, errori. Le azioni UI (cambi vista, apertura modale, modifiche ai campi) vengono inviate dal frontend al backend e scritte nel log.
+This account bypasses the database and cannot change its password. It is protected against timing attacks via `hmac.compare_digest`.
 
-Il log è accessibile in **sola lettura** dalla topbar dell'app (pulsante "≡ Log").
+## System log
 
-## Foto profilo
+`pianifica.log` is created automatically in the project root on first startup.
 
-In **Impostazioni → Dipendenti**, clicca sull'avatar di un dipendente per caricare una foto (JPG/PNG/WebP, max 2 MB). La foto appare in tutte le viste e nella modale attività.
+Format: `[YYYY-MM-DD][HH:MM:SS][LEVEL]: description`
 
-Le immagini sono salvate in `data/avatars/` (gitignored).
+Every significant action is logged: logins, logouts, department/employee creation and modification, activity and absence updates, unhandled errors. UI events (view changes, modal opens, field edits) are sent from the frontend and written to the log.
 
-## Sicurezza
+The log is accessible **read-only** from the topbar (≡ Log button). It rotates automatically at 10 MB (5 backup files kept).
 
-- **Password**: hashata con **Argon2id** (m=64 MB, t=3, p=4 — parametri OWASP 2024)
-- **SQL injection**: impossibile — tutte le query usano SQLAlchemy ORM parametrizzato
-- **XSS**: React esegue escaping automatico di tutto il contenuto dinamico
-- **Injection OS**: il backend non esegue mai comandi di shell
-- **Upload avatar**: validazione MIME type (`image/*`), estensione (jpg/png/webp), dimensione (max 2 MB)
-- **JWT**: token HS256 con scadenza 8 ore, chiave segreta configurabile via `.env`
-- **CORS**: in sviluppo limitato a `http://localhost:5173`
+## Profile photos
 
-> Assicurati di impostare `PIANIFICA_SECRET` nel file `.env` con una stringa casuale di almeno 32 caratteri prima di andare in produzione.
+In **Settings → Employees**, click on an employee's avatar to upload a photo (JPG/PNG/WebP, max 2 MB). The photo appears in all views and in the activity modal.
 
-## Migrazioni database
+Images are saved in `data/avatars/` (gitignored).
 
-Il database `data/pianifica.db` **non viene mai cancellato** dagli aggiornamenti.
+## Security
 
-- **Primo avvio**: `create_all` crea le tabelle automaticamente.
-- **Nuove versioni con modifiche allo schema**: usa Alembic.
+| Measure | Detail |
+|---|---|
+| Password hashing | **Argon2id** — m=64 MB, t=3, p=4 (OWASP 2024 parameters) |
+| JWT secret | Auto-generated on first run, stored in `data/.secret` (gitignored) |
+| Rate limiting | 3 failed login attempts → 180-second lockout (per username, in-memory) |
+| SQL injection | Impossible — all queries use parameterised SQLAlchemy ORM |
+| XSS | React automatically escapes all dynamic content |
+| Log injection | CR/LF stripped from all user-supplied strings before logging |
+| Upload validation | MIME type (`image/*`), extension whitelist, max 2 MB |
+| CORS | Development: restricted to `http://localhost:5173` |
+| Swagger docs | Disabled in production (`docs_url=None`) |
+
+## Database migration
+
+`data/pianifica.db` is **never deleted** by updates.
+
+- **First run**: `create_all` creates tables automatically.
+- **Schema changes**: the app auto-migrates safe `ADD COLUMN` operations at startup. For destructive changes use Alembic.
 
 ```powershell
-# Genera una migrazione dopo aver modificato models.py
-alembic revision --autogenerate -m "descrizione"
+# Generate a migration after editing models.py
+alembic revision --autogenerate -m "description"
 
-# Applica (preserva i dati)
+# Apply (preserves data)
 alembic upgrade head
 ```
 
-## Aggiornare l'app
+## Updating
 
 ```powershell
 git pull
 pip install -r backend\requirements.txt
 cd frontend && npm install && npm run build && cd ..
-alembic upgrade head   # solo se ci sono nuove migrazioni
+alembic upgrade head   # only if there are new migrations
 uvicorn backend.main:app
 ```
 
-## Licenza
+## License
 
-MIT — vedi [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).

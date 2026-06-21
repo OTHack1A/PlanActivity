@@ -11,6 +11,8 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/avatars/
+data/.secret
+data/logo.*
 
 # Log (generato a runtime)
 pianifica.log

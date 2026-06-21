@@ -23,16 +23,16 @@ export const addMonths = (iso, n) => {
   return toISO(d)
 }
 
-export const fmtLong = (iso) =>
-  fromISO(iso).toLocaleDateString('it-IT', {
+export const fmtLong = (iso, locale = 'it-IT') =>
+  fromISO(iso).toLocaleDateString(locale, {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 
-export const fmtMonthYear = (iso) =>
-  fromISO(iso).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
+export const fmtMonthYear = (iso, locale = 'it-IT') =>
+  fromISO(iso).toLocaleDateString(locale, { month: 'long', year: 'numeric' })
 
-export const fmtWeekday = (iso) =>
-  fromISO(iso).toLocaleDateString('it-IT', { weekday: 'short' })
+export const fmtWeekday = (iso, locale = 'it-IT') =>
+  fromISO(iso).toLocaleDateString(locale, { weekday: 'short' })
 
 export const fmtDayNum = (iso) => fromISO(iso).getDate()
 

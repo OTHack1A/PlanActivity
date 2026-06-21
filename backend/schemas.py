@@ -5,9 +5,9 @@ from pydantic import BaseModel, Field
 # --- Auth ---
 
 class RegisterIn(BaseModel):
-    user: str
-    password: str
-    company: str = ""
+    user: str = Field(min_length=1, max_length=50)
+    password: str = Field(min_length=6, max_length=128)
+    company: str = Field(min_length=1, max_length=100)
 
 
 class LoginIn(BaseModel):
@@ -101,8 +101,9 @@ class EntriesOut(BaseModel):
 # --- Log ---
 
 class LogEventIn(BaseModel):
-    action: str
-    details: dict = {}
+    message: str = ""   # new: pre-formatted translated string
+    action: str = ""    # legacy: raw action name
+    details: dict = {}  # legacy: structured details
 
 
 class LogPublicEventIn(BaseModel):

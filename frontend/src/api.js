@@ -19,8 +19,11 @@ async function req(path, opts = {}) {
   if (res.status === 204) return null
   const json = await res.json().catch(() => ({ detail: res.statusText }))
   if (!res.ok) {
-    const err = new Error(json?.detail || 'Errore server')
+    const detail = json?.detail
+    const msg = typeof detail === 'string' ? detail : detail?.message || 'Errore server'
+    const err = new Error(msg)
     err.status = res.status
+    if (res.status === 429) err.retryAfter = detail?.retry_after || 180
     throw err
   }
   return json
@@ -72,9 +75,10 @@ export const putAbsence = (empId, date, type) =>
 // --- Log ---
 export const getLog = (lines = 500) => req(`/log?lines=${lines}`)
 
-export const logEvent = (action, details = {}) => {
-  if (!_token) return Promise.resolve()
-  return req('/log/event', { method: 'POST', body: JSON.stringify({ action, details }) }).catch(() => {})
+/** Evento UI autenticato — accetta una stringa pre-formattata (tradotta lato frontend). */
+export const logEvent = (message) => {
+  if (!_token || !message) return Promise.resolve()
+  return req('/log/event', { method: 'POST', body: JSON.stringify({ message }) }).catch(() => {})
 }
 
 /** Evento pre-login (senza JWT). NON passare mai campi password. */
@@ -85,4 +89,22 @@ export const logPublicEvent = (action) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: String(action) }),
   }).catch(() => {})
+}
+
+// --- Logo ---
+export const getLogoStatus = () => req('/logo/status')
+
+export const uploadLogo = (file) => {
+  const form = new FormData()
+  form.append('file', file)
+  return fetch('/api/logo', { method: 'POST', body: form }).then(async (r) => {
+    if (r.status === 204) return null
+    const json = await r.json().catch(() => ({ detail: r.statusText }))
+    if (!r.ok) {
+      const err = new Error(json?.detail || 'Errore upload logo')
+      err.status = r.status
+      throw err
+    }
+    return json
+  })
 }

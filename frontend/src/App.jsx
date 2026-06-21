@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  todayISO, addMonths, DEPT_COLORS, ABSENCE_TYPES,
+  todayISO, addMonths, DEPT_COLORS,
   viewRange, startOfWeek, addDays,
 } from './store.js'
 import * as api from './api.js'
 import { Topbar, DayView, WeekView, MonthView, YearView, ActivityModal } from './components.jsx'
+import { useI18n } from './i18n.jsx'
 
 // ---------------------------------------------------------------------------
 // Campo password "stile Linux": nessun carattere visibile mentre si digita
@@ -18,8 +19,8 @@ function PwInput({ value, onChange, onBlur, className, autoFocus }) {
   }
   const onPaste = (e) => {
     e.preventDefault()
-    const t = (e.clipboardData || window.clipboardData).getData('text') || ''
-    if (t) onChange(value + t)
+    const txt = (e.clipboardData || window.clipboardData).getData('text') || ''
+    if (txt) onChange(value + txt)
   }
   return (
     <input
@@ -40,29 +41,115 @@ function PwInput({ value, onChange, onBlur, className, autoFocus }) {
 }
 
 // ---------------------------------------------------------------------------
+// LogoArea — impostabile una sola volta cliccando sulla pagina di login
+// ---------------------------------------------------------------------------
+function LogoArea() {
+  const { t } = useI18n()
+  const [customized, setCustomized] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+  const inputRef = useRef(null)
+  const imgRef = useRef(null)
+
+  useEffect(() => {
+    api.getLogoStatus()
+      .then(({ customized: c }) => setCustomized(c))
+      .catch(() => setCustomized(true))
+  }, [])
+
+  const handleClick = () => {
+    if (customized !== false || uploading) return
+    inputRef.current?.click()
+  }
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) {
+      setError(t('logo.invalid'))
+      return
+    }
+    setUploading(true)
+    setError('')
+    try {
+      await api.uploadLogo(file)
+      setCustomized(true)
+      if (imgRef.current) imgRef.current.src = `/api/logo?v=${Date.now()}`
+    } catch (err) {
+      if (err.status === 409) {
+        setCustomized(true)
+      } else {
+        setError(t('logo.error'))
+      }
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const clickable = customized === false && !uploading
+
+  return (
+    <div className="logo-area">
+      <img
+        ref={imgRef}
+        src="/api/logo"
+        alt="Logo"
+        className={'login-logo' + (clickable ? ' logo-clickable' : '')}
+        onClick={handleClick}
+        title={clickable ? t('logo.hint') : ''}
+        onError={(e) => { e.currentTarget.style.display = 'none' }}
+      />
+      {clickable && <div className="logo-hint-text">{t('logo.hint')}</div>}
+      {uploading && <div className="logo-hint-text">{t('logo.uploading')}</div>}
+      {error && <div className="fld-note">{error}</div>}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleFile}
+      />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Register
 // ---------------------------------------------------------------------------
 function Register({ onRegister }) {
+  const { t } = useI18n()
   const [company, setCompany] = useState('')
   const [user, setUser] = useState('')
   const [pass, setPass] = useState('')
   const [pass2, setPass2] = useState('')
+  const [pass2Dirty, setPass2Dirty] = useState(false)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const mismatch = pass2.length > 0 && pass !== pass2
-  const valid = user.trim().length > 0 && pass.length > 0 && pass === pass2
+  const mismatch = pass2Dirty && pass2.length > 0 && pass !== pass2
+  const valid = company.trim().length > 0 && user.trim().length > 0 && pass.length > 0 && pass === pass2 && !loading
+
+  const onPassChange = (v) => { setPass(v); setPass2Dirty(false); setPass2('') }
 
   const submit = async (e) => {
     e.preventDefault()
     if (!valid) return
-    api.logPublicEvent(`Registrazione: pulsante 'Registra' premuto — utente='${user.trim()}', azienda='${company.trim()}'`)
+    setLoading(true)
+    setError('')
+    api.logPublicEvent(t('log.reg.submit', { user: user.trim(), company: company.trim() }))
     try {
       const { access_token } = await api.register(user.trim(), pass, company.trim())
       api.setToken(access_token)
       onRegister()
     } catch (err) {
-      api.logPublicEvent(`Registrazione fallita: ${err.message}`)
-      setError(err.message)
+      const msg = err.message === 'Failed to fetch'
+        ? t('reg.errServerDown')
+        : err.message || 'Errore sconosciuto'
+      api.logPublicEvent(t('log.reg.failed', { msg }))
+      setError(msg)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -70,51 +157,59 @@ function Register({ onRegister }) {
     <div className="login-screen">
       <div className="login-grid"></div>
       <form className="login-card" onSubmit={submit}>
-        <img src="/logo.jpg" alt="Logo" className="login-logo" />
+        <LogoArea />
         <div className="login-brand"><span className="dot"></span><span>PIANIFICA</span></div>
-        <h1>Crea il tuo account</h1>
-        <p className="login-lead">Configura il sistema per la tua officina.</p>
+        <h1>{t('reg.title')}</h1>
+        <p className="login-lead">{t('reg.lead')}</p>
         <label className="fld">
-          <span>Nome azienda</span>
+          <span>{t('reg.company')}</span>
           <input
             autoFocus
             value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            onBlur={() => company.trim() && api.logPublicEvent(`Registrazione: campo 'Nome azienda' compilato — '${company.trim()}'`)}
-            placeholder="Es. Autofficina Rossi"
+            onChange={(e) => { setCompany(e.target.value); setError('') }}
+            onBlur={() => company.trim() && api.logPublicEvent(t('log.reg.company', { value: company.trim() }))}
+            placeholder={t('reg.companyPlaceholder')}
             autoComplete="organization"
           />
         </label>
         <label className="fld">
-          <span>Utente</span>
+          <span>{t('reg.user')}</span>
           <input
             value={user}
-            onChange={(e) => setUser(e.target.value)}
-            onBlur={() => user.trim() && api.logPublicEvent(`Registrazione: campo 'Utente' compilato — '${user.trim()}'`)}
+            onChange={(e) => { setUser(e.target.value); setError('') }}
+            onBlur={() => user.trim() && api.logPublicEvent(t('log.reg.user', { value: user.trim() }))}
             autoComplete="username"
           />
         </label>
         <label className="fld">
-          <span>Password</span>
+          <span>{t('reg.password')}</span>
           {/* Il valore della password non viene mai loggato */}
           <PwInput
             value={pass}
-            onChange={setPass}
-            onBlur={() => pass.length > 0 && api.logPublicEvent("Registrazione: campo 'Password' compilato")}
+            onChange={onPassChange}
+            onBlur={() => pass.length > 0 && api.logPublicEvent(t('log.reg.pass'))}
           />
         </label>
         <label className="fld">
-          <span>Ripeti password</span>
+          <span>{t('reg.passwordRepeat')}</span>
           <PwInput
             value={pass2}
-            onChange={setPass2}
-            onBlur={() => pass2.length > 0 && api.logPublicEvent(`Registrazione: campo 'Ripeti password' compilato — ${mismatch ? 'NON coincide' : 'coincide'}`)}
+            onChange={(v) => { setPass2(v); setError('') }}
+            onBlur={() => {
+              setPass2Dirty(true)
+              if (pass2.length > 0) {
+                const match = pass === pass2 ? t('log.reg.match') : t('log.reg.noMatch')
+                api.logPublicEvent(t('log.reg.pass2', { match }))
+              }
+            }}
             className={mismatch ? 'bad' : ''}
           />
         </label>
-        {mismatch && <div className="fld-note">Le password non coincidono.</div>}
+        {mismatch && <div className="fld-note">{t('reg.passwordMismatch')}</div>}
         {error && <div className="fld-note">{error}</div>}
-        <button type="submit" className="login-btn" disabled={!valid}>Registra →</button>
+        <button type="submit" className="login-btn" disabled={!valid}>
+          {loading ? t('reg.submitting') : t('reg.submit')}
+        </button>
       </form>
     </div>
   )
@@ -124,23 +219,48 @@ function Register({ onRegister }) {
 // Login
 // ---------------------------------------------------------------------------
 function Login({ onLogin }) {
+  const { t } = useI18n()
   const [user, setUser] = useState('')
   const [pass, setPass] = useState('')
   const [shake, setShake] = useState(false)
+  const [lockedFor, setLockedFor] = useState(0)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (lockedFor <= 0) return
+    const id = setInterval(() => {
+      setLockedFor((s) => {
+        if (s <= 1) { clearInterval(id); return 0 }
+        return s - 1
+      })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [lockedFor])
+
+  const fmtLock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
   const submit = async (e) => {
     e.preventDefault()
-    api.logPublicEvent(`Login: pulsante 'Accedi' premuto — utente='${user.trim()}'`)
+    if (lockedFor > 0) return
+    api.logPublicEvent(t('log.login.submit', { user: user.trim() }))
     try {
       const { access_token } = await api.login(user.trim(), pass)
       api.setToken(access_token)
       onLogin()
-    } catch {
-      api.logPublicEvent(`Login: tentativo fallito — utente='${user.trim()}'`)
-      setUser('')
+    } catch (err) {
+      api.logPublicEvent(t('log.login.failed', { user: user.trim() }))
       setPass('')
-      setShake(true)
-      setTimeout(() => setShake(false), 600)
+      if (err.status === 429) {
+        setLockedFor(err.retryAfter || 180)
+        setError('')
+      } else {
+        const msg = err.message === 'Failed to fetch'
+          ? t('login.errServerDown')
+          : err.message || t('login.submit')
+        setError(msg)
+        setShake(true)
+        setTimeout(() => setShake(false), 600)
+      }
     }
   }
 
@@ -148,30 +268,39 @@ function Login({ onLogin }) {
     <div className="login-screen">
       <div className="login-grid"></div>
       <form className={'login-card' + (shake ? ' shake' : '')} onSubmit={submit}>
-        <img src="/logo.jpg" alt="Logo" className="login-logo" />
+        <LogoArea />
         <div className="login-brand"><span className="dot"></span><span>PIANIFICA</span></div>
-        <h1>Accesso al sistema</h1>
-        <p className="login-lead">Inserisci le credenziali per continuare.</p>
+        <h1>{t('login.title')}</h1>
+        <p className="login-lead">{t('login.lead')}</p>
         <label className="fld">
-          <span>Utente</span>
+          <span>{t('login.user')}</span>
           <input
             autoFocus
             value={user}
-            onChange={(e) => setUser(e.target.value)}
-            onBlur={() => user.trim() && api.logPublicEvent(`Login: campo 'Utente' compilato — '${user.trim()}'`)}
+            onChange={(e) => { setUser(e.target.value); setError('') }}
+            onBlur={() => user.trim() && api.logPublicEvent(t('log.login.user', { user: user.trim() }))}
             autoComplete="username"
+            disabled={lockedFor > 0}
           />
         </label>
         <label className="fld">
-          <span>Password</span>
+          <span>{t('login.password')}</span>
           {/* Il valore della password non viene mai loggato */}
           <PwInput
             value={pass}
-            onChange={setPass}
-            onBlur={() => pass.length > 0 && api.logPublicEvent("Login: campo 'Password' compilato")}
+            onChange={(v) => { setPass(v); setError('') }}
+            onBlur={() => pass.length > 0 && api.logPublicEvent(t('log.login.pass'))}
           />
         </label>
-        <button type="submit" className="login-btn">Entra nel sistema →</button>
+        {error && !lockedFor && <div className="fld-note">{error}</div>}
+        {lockedFor > 0 && (
+          <div className="fld-note lock-note">
+            {t('login.retryAfter', { s: fmtLock(lockedFor) })}
+          </div>
+        )}
+        <button type="submit" className="login-btn" disabled={lockedFor > 0}>
+          {lockedFor > 0 ? t('login.locked', { s: fmtLock(lockedFor) }) : t('login.submit')}
+        </button>
       </form>
     </div>
   )
@@ -181,6 +310,7 @@ function Login({ onLogin }) {
 // Account (cambio password)
 // ---------------------------------------------------------------------------
 function Account({ onBack }) {
+  const { t } = useI18n()
   const [oldP, setOldP] = useState('')
   const [np, setNp] = useState('')
   const [np2, setNp2] = useState('')
@@ -194,7 +324,7 @@ function Account({ onBack }) {
     try {
       await api.changePassword(oldP, np)
       setOldP(''); setNp(''); setNp2('')
-      setMsg({ ok: true, text: 'Password aggiornata correttamente.' })
+      setMsg({ ok: true, text: t('account.passwordUpdated') })
     } catch (err) {
       setMsg({ ok: false, text: err.message })
     }
@@ -202,25 +332,25 @@ function Account({ onBack }) {
 
   return (
     <div className="wrap settings">
-      <h1>Account</h1>
+      <h1>{t('account.title')}</h1>
       <form className="panel account-panel" onSubmit={submit}>
-        <h2>Cambia password</h2>
+        <h2>{t('account.changePassword')}</h2>
         <label className="fld">
-          <span>Password attuale</span>
+          <span>{t('account.currentPass')}</span>
           <PwInput value={oldP} onChange={(v) => { setOldP(v); setMsg(null) }} />
         </label>
         <label className="fld">
-          <span>Nuova password</span>
+          <span>{t('account.newPass')}</span>
           <PwInput value={np} onChange={(v) => { setNp(v); setMsg(null) }} />
         </label>
         <label className="fld">
-          <span>Ripeti nuova password</span>
+          <span>{t('account.newPassRepeat')}</span>
           <PwInput value={np2} onChange={(v) => { setNp2(v); setMsg(null) }} className={mismatch ? 'bad' : ''} />
         </label>
-        {mismatch && <div className="fld-note">Le password non coincidono.</div>}
+        {mismatch && <div className="fld-note">{t('account.passwordMismatch')}</div>}
         {msg && <div className={'acc-msg ' + (msg.ok ? 'ok' : 'err')}>{msg.text}</div>}
         <button type="submit" className="login-btn" disabled={!valid} style={{ marginTop: 8 }}>
-          Aggiorna password
+          {t('account.submit')}
         </button>
       </form>
     </div>
@@ -231,6 +361,7 @@ function Account({ onBack }) {
 // Log viewer (sola lettura)
 // ---------------------------------------------------------------------------
 function LogViewer() {
+  const { t } = useI18n()
   const [lines, setLines] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -264,26 +395,24 @@ function LogViewer() {
   return (
     <div className="wrap">
       <div className="log-header">
-        <h1>Log di sistema</h1>
+        <h1>{t('log.title')}</h1>
         <button
           className="btn-icon"
           onClick={() => { setRefreshing(true); load() }}
           disabled={refreshing}
         >
-          ↻ Aggiorna
+          {t('log.refresh')}
         </button>
       </div>
-      <p className="log-meta">
-        Ultimi 500 eventi · aggiornamento automatico ogni 5 s · sola lettura
-      </p>
+      <p className="log-meta">{t('log.meta')}</p>
       {loading ? (
-        <div className="log-loading">Caricamento…</div>
+        <div className="log-loading">{t('log.loading')}</div>
       ) : error ? (
         <div className="log-loading log-err">{error}</div>
       ) : (
         <div className="log-viewer">
           {lines.length === 0 ? (
-            <div className="log-empty">Nessun evento registrato.</div>
+            <div className="log-empty">{t('log.empty')}</div>
           ) : (
             lines.map((line, i) => (
               <div key={i} className={'log-line ' + levelClass(line)}>{line}</div>
@@ -299,6 +428,7 @@ function LogViewer() {
 // Settings
 // ---------------------------------------------------------------------------
 function Settings({ data, onReload }) {
+  const { t } = useI18n()
   const [depName, setDepName] = useState('')
   const [depColor, setDepColor] = useState(
     DEPT_COLORS[data.departments.length % DEPT_COLORS.length]
@@ -307,7 +437,6 @@ function Settings({ data, onReload }) {
   const [empRole, setEmpRole] = useState('')
   const [empDep, setEmpDep] = useState(data.departments[0]?.id || '')
 
-  // Stato locale per editing inline dipendenti (flush su onBlur)
   const [empEdits, setEmpEdits] = useState({})
   const getEmpVal = (emp, field) => empEdits[emp.id]?.[field] ?? emp[field]
   const onEmpChange = (id, field, val) =>
@@ -319,12 +448,12 @@ function Settings({ data, onReload }) {
     const emp = data.employees.find((e) => e.id === id)
     const oldVal = emp?.[field] ?? ''
     if (String(val) !== String(oldVal)) {
-      api.logEvent('Campo dipendente modificato', {
-        dipendente: emp?.name ?? id,
-        campo: field,
-        da: String(oldVal),
-        a: String(val),
-      })
+      api.logEvent(t('log.empEdited', {
+        name: emp?.name ?? id,
+        field,
+        from: String(oldVal),
+        to: String(val),
+      }))
     }
     await api.patchEmployee(id, { [field]: val })
     await onReload('employees')
@@ -338,7 +467,7 @@ function Settings({ data, onReload }) {
   const addDep = async () => {
     const name = depName.trim()
     if (!name) return
-    api.logEvent('Bottone premuto', { azione: 'Aggiungi reparto', nome: name, colore: depColor })
+    api.logEvent(t('log.deptAdded', { name }))
     await api.createDepartment(name, depColor)
     setDepName('')
     setDepColor(DEPT_COLORS[(data.departments.length + 1) % DEPT_COLORS.length])
@@ -347,10 +476,9 @@ function Settings({ data, onReload }) {
 
   const removeDep = async (id) => {
     const count = data.employees.filter((e) => e.departmentId === id).length
-    if (count > 0 && !confirm(`Eliminando questo reparto verranno eliminati anche ${count} dipendenti e le relative attività. Procedere?`))
-      return
+    if (count > 0 && !confirm(t('settings.deleteDeptConfirm', { n: count }))) return
     const dep = data.departments.find((d) => d.id === id)
-    api.logEvent('Bottone premuto', { azione: 'Elimina reparto', nome: dep?.name ?? id })
+    api.logEvent(t('log.deptDeleted', { name: dep?.name ?? id }))
     await api.deleteDepartment(id)
     await onReload('all')
   }
@@ -358,7 +486,7 @@ function Settings({ data, onReload }) {
   const addEmp = async () => {
     const name = empName.trim()
     if (!name || !empDep) return
-    api.logEvent('Bottone premuto', { azione: 'Aggiungi dipendente', nome: name })
+    api.logEvent(t('log.empAdded', { name }))
     await api.createEmployee({ name, role: empRole.trim() || '—', departmentId: empDep, overtime: '' })
     setEmpName(''); setEmpRole('')
     await onReload('employees')
@@ -374,7 +502,7 @@ function Settings({ data, onReload }) {
 
   const removeEmp = async (id) => {
     const emp = data.employees.find((e) => e.id === id)
-    api.logEvent('Bottone premuto', { azione: 'Elimina dipendente', nome: emp?.name ?? id })
+    api.logEvent(t('log.empDeleted', { name: emp?.name ?? id }))
     await api.deleteEmployee(id)
     await onReload('employees')
   }
@@ -382,25 +510,24 @@ function Settings({ data, onReload }) {
   const handleAvatarUpload = async (empId, file) => {
     if (!file) return
     const emp = data.employees.find((e) => e.id === empId)
-    api.logEvent('Foto profilo caricata', { dipendente: emp?.name ?? empId })
+    api.logEvent(t('log.avatarUploaded', { name: emp?.name ?? empId }))
     await api.uploadAvatar(empId, file)
     await onReload('employees')
   }
 
   const depById = (id) => data.departments.find((x) => x.id === id)
 
-  // Sincronizza empDep se la lista reparti cambia
   useEffect(() => {
     if (!empDep && data.departments[0]) setEmpDep(data.departments[0].id)
   }, [data.departments])
 
   return (
     <div className="wrap settings">
-      <h1>Impostazioni</h1>
+      <h1>{t('settings.title')}</h1>
       <div className="set-cols">
         {/* REPARTI */}
         <div className="panel">
-          <h2>Reparti</h2>
+          <h2>{t('settings.depts')}</h2>
           {data.departments.map((dep) => {
             const count = data.employees.filter((e) => e.departmentId === dep.id).length
             return (
@@ -408,24 +535,24 @@ function Settings({ data, onReload }) {
                 <span className="swatch" style={{ background: dep.color }}></span>
                 <span className="nm">{dep.name}</span>
                 <span className="cnt">{count}</span>
-                <button className="rm" onClick={() => removeDep(dep.id)} title="Elimina reparto">✕</button>
+                <button className="rm" onClick={() => removeDep(dep.id)} title="✕">✕</button>
               </div>
             )
           })}
           {data.departments.length === 0 && (
-            <div style={{ color: 'var(--faint)', fontSize: 13 }}>Nessun reparto.</div>
+            <div style={{ color: 'var(--faint)', fontSize: 13 }}>{t('settings.noDepts')}</div>
           )}
           <div className="row-add">
             <input
-              placeholder="Nuovo reparto…"
+              placeholder={t('settings.newDept')}
               value={depName}
               onChange={(e) => setDepName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addDep()}
             />
-            <button onClick={addDep} disabled={!depName.trim()}>Aggiungi</button>
+            <button onClick={addDep} disabled={!depName.trim()}>{t('settings.add')}</button>
           </div>
           <div className="color-pick">
-            <span className="color-pick-lbl">Colore</span>
+            <span className="color-pick-lbl">{t('settings.color')}</span>
             <div className="swatches">
               {DEPT_COLORS.map((c) => (
                 <button
@@ -433,7 +560,7 @@ function Settings({ data, onReload }) {
                   className={'sw' + (depColor === c ? ' sel' : '')}
                   style={{ background: c }}
                   onClick={() => setDepColor(c)}
-                  title="Scegli colore"
+                  title={t('settings.color')}
                 ></button>
               ))}
             </div>
@@ -442,11 +569,11 @@ function Settings({ data, onReload }) {
 
         {/* DIPENDENTI */}
         <div className="panel">
-          <h2>Dipendenti</h2>
+          <h2>{t('settings.employees')}</h2>
           {data.employees.length > 0 && (
             <div className="emp-list-head">
-              <span>Dipendente · reparto</span>
-              <span className="ot-head">Straordinario (h)</span>
+              <span>{t('settings.deptEmpHead')}</span>
+              <span className="ot-head">{t('settings.overtimeH')}</span>
             </div>
           )}
           <div className="emp-list">
@@ -457,7 +584,7 @@ function Settings({ data, onReload }) {
                   <label
                     className="ava avatar-upload"
                     style={{ background: dep ? dep.color : 'var(--faint)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
-                    title="Clicca per caricare foto profilo"
+                    title={t('settings.avatarTitle')}
                   >
                     {emp.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')}
                     {emp.hasAvatar && (
@@ -479,14 +606,14 @@ function Settings({ data, onReload }) {
                     <input
                       className="emp-edit nm"
                       value={getEmpVal(emp, 'name')}
-                      placeholder="Nome e cognome"
+                      placeholder={t('settings.empName')}
                       onChange={(e) => onEmpChange(emp.id, 'name', e.target.value)}
                       onBlur={() => onEmpBlur(emp.id, 'name')}
                     />
                     <input
                       className="emp-edit rl"
                       value={getEmpVal(emp, 'role')}
-                      placeholder="Mansione"
+                      placeholder={t('settings.empRole')}
                       onChange={(e) => onEmpChange(emp.id, 'role', e.target.value)}
                       onBlur={() => onEmpBlur(emp.id, 'role')}
                     />
@@ -499,26 +626,26 @@ function Settings({ data, onReload }) {
                     value={getEmpVal(emp, 'overtime') || ''}
                     onChange={(e) => onOvertime(emp.id, e.target.value)}
                     onBlur={() => onEmpBlur(emp.id, 'overtime')}
-                    title="Ore di straordinario"
+                    title={t('settings.overtimeH')}
                   />
-                  <button className="rm" onClick={() => removeEmp(emp.id)} title="Elimina dipendente">✕</button>
+                  <button className="rm" onClick={() => removeEmp(emp.id)} title="✕">✕</button>
                 </div>
               )
             })}
             {data.employees.length === 0 && (
-              <div style={{ color: 'var(--faint)', fontSize: 13 }}>Nessun dipendente.</div>
+              <div style={{ color: 'var(--faint)', fontSize: 13 }}>{t('settings.noEmployees')}</div>
             )}
           </div>
 
           <div className="emp-add">
-            <input placeholder="Nome e cognome" value={empName} onChange={(e) => setEmpName(e.target.value)} />
-            <input placeholder="Mansione" value={empRole} onChange={(e) => setEmpRole(e.target.value)} />
+            <input placeholder={t('settings.empName')} value={empName} onChange={(e) => setEmpName(e.target.value)} />
+            <input placeholder={t('settings.empRole')} value={empRole} onChange={(e) => setEmpRole(e.target.value)} />
             <select value={empDep} onChange={(e) => setEmpDep(e.target.value)}>
               {data.departments.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
-            <button onClick={addEmp} disabled={!empName.trim() || !empDep}>Aggiungi</button>
+            <button onClick={addEmp} disabled={!empName.trim() || !empDep}>{t('settings.add')}</button>
           </div>
         </div>
       </div>
@@ -530,7 +657,7 @@ function Settings({ data, onReload }) {
 // App principale
 // ---------------------------------------------------------------------------
 export default function App() {
-  // 'loading' | 'register' | 'login' | 'app'
+  const { t } = useI18n()
   const [screen, setScreen] = useState('loading')
   const [data, setData] = useState({ departments: [], employees: [], entries: {}, absences: {} })
   const [company, setCompany] = useState('')
@@ -539,7 +666,6 @@ export default function App() {
   const [date, setDate] = useState(todayISO)
   const [modal, setModal] = useState(null)
 
-  // Carica entries + absences per il range visibile
   const loadEntries = useCallback(async (v, d) => {
     const { from, to } = viewRange(v, d)
     try {
@@ -550,13 +676,11 @@ export default function App() {
     }
   }, [])
 
-  // Carica reparti + dipendenti
   const loadDeptEmps = useCallback(async () => {
     const [depts, emps] = await Promise.all([api.getDepartments(), api.getEmployees()])
     setData((prev) => ({ ...prev, departments: depts, employees: emps }))
   }, [])
 
-  // Ricarica selettiva dopo una mutazione
   const onReload = useCallback(async (what) => {
     if (what === 'all' || what === 'departments') {
       const depts = await api.getDepartments()
@@ -571,7 +695,6 @@ export default function App() {
     }
   }, [view, date, loadEntries])
 
-  // Boot: controlla se c'è già un account registrato
   useEffect(() => {
     api.authStatus()
       .then(({ registered }) => {
@@ -584,7 +707,6 @@ export default function App() {
       .catch(() => setScreen('register'))
   }, [])
 
-  // Carica i dati al login
   useEffect(() => {
     if (screen !== 'app') return
     Promise.all([api.getDepartments(), api.getEmployees(), api.getAccount()])
@@ -598,7 +720,6 @@ export default function App() {
       })
   }, [screen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Ricarica entries al cambio vista/data
   useEffect(() => {
     if (screen !== 'app') return
     loadEntries(view, date)
@@ -613,13 +734,10 @@ export default function App() {
   }
 
   const changeView = (newView) => {
-    if (newView !== view) {
-      api.logEvent('Vista cambiata', { da: view, a: newView })
-    }
+    if (newView !== view) api.logEvent(t('log.viewChanged', { from: view, to: newView }))
     setView(newView)
   }
 
-  // Salvataggio dalla modale attività
   const handleModalSave = async (empId, dateStr, activities, absenceType) => {
     await api.putEntries(empId, dateStr, activities)
     await api.putAbsence(empId, dateStr, absenceType)
@@ -628,7 +746,7 @@ export default function App() {
   }
 
   const openModal = (emp, dep, d) => {
-    api.logEvent('Modale attività aperta', { dipendente: emp.name, data: d || date })
+    api.logEvent(t('log.modalOpened', { emp: emp.name, date: d || date }))
     setModal({ emp, dep, date: d || date })
   }
   const pickDay = (d) => { setDate(d); setView('day') }
@@ -637,7 +755,7 @@ export default function App() {
   if (screen === 'loading') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--muted)' }}>
-        Caricamento…
+        {t('app.loading')}
       </div>
     )
   }
@@ -651,9 +769,9 @@ export default function App() {
         date={date} setDate={setDate}
         page={page}
         company={company}
-        onSettings={() => { api.logEvent('Pagina aperta', { pagina: 'Impostazioni' }); setPage('settings') }}
-        onLog={() => { api.logEvent('Pagina aperta', { pagina: 'Log' }); setPage('log') }}
-        onAccount={() => { api.logEvent('Pagina aperta', { pagina: 'Account' }); setPage('account') }}
+        onSettings={() => { api.logEvent(t('log.pageOpened', { page: t('nav.settings') })); setPage('settings') }}
+        onLog={() => { api.logEvent(t('log.pageOpened', { page: t('nav.log') })); setPage('log') }}
+        onAccount={() => { api.logEvent(t('log.pageOpened', { page: t('nav.account') })); setPage('account') }}
         onCalendar={() => setPage('calendar')}
         onToday={goToday}
         onLogout={handleLogout}

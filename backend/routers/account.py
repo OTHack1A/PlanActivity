@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models, schemas
-from ..auth import verify_password, hash_password, current_account
+from ..auth import verify_password, hash_password, current_account, MASTER_ID
 from ..logging_config import get_logger
 
 router = APIRouter(prefix="/api/account", tags=["account"])
@@ -19,6 +19,8 @@ def change_password(
     db: Session = Depends(get_db),
     acc: models.Account = Depends(current_account),
 ):
+    if acc.id == MASTER_ID:
+        raise HTTPException(status_code=403, detail="L'account master non può cambiare password")
     if not verify_password(body.current, acc.password_hash):
         raise HTTPException(status_code=400, detail="La password attuale non è corretta")
     new_pass = body.new_password

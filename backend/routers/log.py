@@ -19,13 +19,20 @@ def log_frontend_event(
     _: models.Account = Depends(current_account),
 ):
     """Evento UI autenticato (richiede JWT)."""
-    action = _sanitize(body.action)
-    details_str = (
-        " — " + ", ".join(f"{_sanitize(k)}={_sanitize(str(v))}" for k, v in body.details.items())
-        if body.details
-        else ""
-    )
-    get_logger().info(f"[UI] {action}{details_str}")
+    if body.message:
+        safe = _sanitize(body.message)
+        if safe:
+            get_logger().info(f"[UI] {safe}")
+    elif body.action:
+        action = _sanitize(body.action)
+        details_str = (
+            " — " + ", ".join(
+                f"{_sanitize(k)}={_sanitize(str(v))}" for k, v in body.details.items()
+            )
+            if body.details
+            else ""
+        )
+        get_logger().info(f"[UI] {action}{details_str}")
 
 
 @router.post("/public-event", status_code=204)

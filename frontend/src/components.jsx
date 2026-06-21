@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, Fragment } from 'react'
+import * as XLSX from 'xlsx'
 import {
   todayISO, addDays, addMonths, fromISO,
   fmtLong, fmtMonthYear, fmtWeekday, fmtDayNum,
@@ -7,18 +8,18 @@ import {
   getEntries, empDayTotal, empHasDay, dayTotalAll, employeesByDept, fmtHours,
   ABSENCE_TYPES, getAbsence,
 } from './store.js'
+import * as api from './api.js'
+import { useI18n, LANG_OPTIONS } from './i18n.jsx'
 
 const initials = (name) =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
 
 export { initials }
 
-const DOW = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
 const STD_HOURS = 8
 const empTarget = (emp) => STD_HOURS + (Number(emp && emp.overtime) || 0)
 
 /* ---------------------------------------------------------------- AVATAR */
-// Mostra la foto profilo se disponibile, altrimenti le iniziali.
 function AvatarImg({ emp }) {
   const [failed, setFailed] = useState(false)
   if (!emp.hasAvatar || failed) return null
@@ -39,76 +40,379 @@ function AvatarImg({ emp }) {
 
 /* ---------------------------------------------------------------- TOPBAR */
 export function Topbar({ view, setView, date, setDate, onSettings, onLog, onAccount, onCalendar, onToday, page, onLogout, company }) {
+  const { t, lang, setLang, locale } = useI18n()
   const today = todayISO()
+
   const step = (dir) => {
     if (view === 'day') setDate(addDays(date, dir))
     else if (view === 'week') setDate(addDays(date, dir * 7))
     else if (view === 'month') setDate(addMonths(date, dir))
     else setDate(addMonths(date, dir * 12))
   }
-  let label = ''
-  if (view === 'day') label = fmtLong(date)
+
+  let dateLabel = ''
+  if (view === 'day') dateLabel = fmtLong(date, locale)
   else if (view === 'week') {
     const w = weekDays(date)
     const a = fromISO(w[0]), b = fromISO(w[6])
-    const fmt = (d, opts) => d.toLocaleDateString('it-IT', opts)
-    label = `${fmt(a, { day: 'numeric', month: 'short' })} – ${fmt(b, { day: 'numeric', month: 'short', year: 'numeric' })}`
-  } else if (view === 'month') label = fmtMonthYear(date)
-  else label = String(fromISO(date).getFullYear())
+    const fmt = (d, opts) => d.toLocaleDateString(locale, opts)
+    dateLabel = `${fmt(a, { day: 'numeric', month: 'short' })} – ${fmt(b, { day: 'numeric', month: 'short', year: 'numeric' })}`
+  } else if (view === 'month') dateLabel = fmtMonthYear(date, locale)
+  else dateLabel = String(fromISO(date).getFullYear())
 
   return (
     <div className="topbar">
-      <div className="brand"><span className="dot"></span><span>Pianifica</span></div>
+      <div className="brand"><span className="dot"></span><span>{t('brand.name')}</span></div>
       {page === 'calendar' && (
         <>
           <div className="tabs">
-            {[['day', 'Giorno'], ['week', 'Settimana'], ['month', 'Mese'], ['year', 'Anno']].map(
-              ([v, t]) => (
-                <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>{t}</button>
+            {[['day', t('view.day')], ['week', t('view.week')], ['month', t('view.month')], ['year', t('view.year')]].map(
+              ([v, viewLabel]) => (
+                <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>{viewLabel}</button>
               )
             )}
           </div>
           <div className="nav">
-            <button className="arrow" onClick={() => step(-1)} aria-label="Precedente">‹</button>
-            <button className="btn-today" onClick={onToday}>Oggi</button>
-            <button className="arrow" onClick={() => step(1)} aria-label="Successivo">›</button>
+            <button className="arrow" onClick={() => step(-1)} aria-label={t('nav.prev')}>‹</button>
+            <button className="btn-today" onClick={onToday}>{t('nav.today')}</button>
+            <button className="arrow" onClick={() => step(1)} aria-label={t('nav.next')}>›</button>
           </div>
-          <div className="date-label">{label}</div>
+          <div className="date-label">{dateLabel}</div>
         </>
       )}
       <div className="spacer"></div>
       {company && (
         <div className="company-id">
-          <img src="/logo.jpg" alt="" className="company-logo" />
+          <img src="/api/logo" alt="" className="company-logo" onError={(e) => { e.currentTarget.style.display = 'none' }} />
           <span className="company-name">{company}</span>
         </div>
       )}
       {page === 'calendar' ? (
         <>
-          <button className="btn-icon" onClick={onSettings}>⚙ Impostazioni</button>
-          <button className="btn-icon" onClick={onLog}>≡ Log</button>
-          <button className="btn-icon" onClick={onAccount}>◉ Account</button>
+          <button className="btn-icon" onClick={onSettings}>{t('nav.settings')}</button>
+          <button className="btn-icon" onClick={onLog}>{t('nav.log')}</button>
+          <button className="btn-icon" onClick={onAccount}>{t('nav.account')}</button>
         </>
       ) : (
-        <button className="btn-icon" onClick={onCalendar}>‹ Torna al calendario</button>
+        <button className="btn-icon" onClick={onCalendar}>{t('nav.back')}</button>
       )}
-      <button className="btn-icon ghost" onClick={onLogout} title="Esci dal sistema">⎋ Esci</button>
+      <button className="btn-icon ghost" onClick={onLogout} title={t('nav.logout')}>{t('nav.logout')}</button>
+      <div className="lang-switch">
+        {LANG_OPTIONS.map(({ code, label: lbl }) => (
+          <button
+            key={code}
+            className={'lang-btn' + (lang === code ? ' active' : '')}
+            onClick={() => setLang(code)}
+          >
+            {lbl}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* --------------------------------------------------------- EXPORT HELPERS */
+
+function buildDayRows(employees, departments, fetchedEntries, fetchedAbsences, date, t) {
+  const deptMap = new Map(departments.map((d) => [d.id, d]))
+  const header = [
+    t('export.colEmployee'), t('export.colRole'), t('export.colDept'),
+    t('export.colPresence'), t('export.colActivity'), t('export.colHours'), t('export.colNotes'),
+  ]
+  const rows = [header]
+  for (const emp of employees) {
+    const dep = deptMap.get(emp.departmentId)
+    const absence = fetchedAbsences[date]?.[emp.id] || null
+    const acts = fetchedEntries[date]?.[emp.id] || []
+    if (absence) {
+      rows.push([emp.name, emp.role, dep?.name || '', t(`absence.${absence}.label`), '', '', ''])
+    } else if (acts.length > 0) {
+      for (let i = 0; i < acts.length; i++) {
+        const act = acts[i]
+        rows.push([
+          i === 0 ? emp.name : '',
+          i === 0 ? emp.role : '',
+          i === 0 ? (dep?.name || '') : '',
+          i === 0 ? t('modal.present') : '',
+          act.activity,
+          Number(act.hours) || 0,
+          act.notes || '',
+        ])
+      }
+    } else {
+      rows.push([emp.name, emp.role, dep?.name || '', t('modal.present'), '', 0, ''])
+    }
+  }
+  return rows
+}
+
+const COL_WIDTHS = [
+  { wch: 22 }, { wch: 15 }, { wch: 15 },
+  { wch: 12 }, { wch: 35 }, { wch: 7 }, { wch: 25 },
+]
+
+const WEEK_TAB_COLORS = ['FF4472C4', 'FF70AD47', 'FFE18A37', 'FFED7D31', 'FF7030A0']
+
+async function doExportWeek(data, date, t, locale) {
+  const days = weekDays(date)
+  const today = todayISO()
+  const { entries, absences } = await api.getEntries(days[0], days[6])
+
+  const wb = XLSX.utils.book_new()
+  if (!wb.Workbook) wb.Workbook = {}
+  if (!wb.Workbook.Sheets) wb.Workbook.Sheets = []
+
+  for (let i = 0; i < 7; i++) {
+    const d = days[i]
+    const dt = fromISO(d)
+    const wd = dt.toLocaleDateString(locale, { weekday: 'short' })
+    const tabName = `${wd} ${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}`
+      .slice(0, 31)
+
+    const rows = buildDayRows(data.employees, data.departments, entries, absences, d, t)
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = COL_WIDTHS
+    XLSX.utils.book_append_sheet(wb, ws, tabName)
+
+    while (wb.Workbook.Sheets.length <= i) wb.Workbook.Sheets.push({})
+    if (d === today) wb.Workbook.Sheets[i].tabColor = { rgb: 'FFE67E22' }
+  }
+
+  const yearMonth = date.slice(0, 7)
+  XLSX.writeFile(wb, `Pianifica_settimana_${yearMonth}.xlsx`)
+}
+
+async function doExportToday(data, t, locale) {
+  const today = todayISO()
+  const { entries, absences } = await api.getEntries(today, today)
+
+  const dt = fromISO(today)
+  const wd = dt.toLocaleDateString(locale, { weekday: 'short' })
+  const tabName = `${wd} ${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}`
+    .slice(0, 31)
+
+  const wb = XLSX.utils.book_new()
+  if (!wb.Workbook) wb.Workbook = {}
+  if (!wb.Workbook.Sheets) wb.Workbook.Sheets = []
+
+  const rows = buildDayRows(data.employees, data.departments, entries, absences, today, t)
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = COL_WIDTHS
+  XLSX.utils.book_append_sheet(wb, ws, tabName)
+  wb.Workbook.Sheets.push({ tabColor: { rgb: 'FFE67E22' } })
+
+  XLSX.writeFile(wb, `Pianifica_oggi_${today}.xlsx`)
+}
+
+async function doExportMonth(data, date, t, locale) {
+  const year = parseInt(date.slice(0, 4), 10)
+  const month = parseInt(date.slice(5, 7), 10)
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const monthFrom = `${year}-${String(month).padStart(2,'0')}-01`
+  const monthTo   = `${year}-${String(month).padStart(2,'0')}-${String(daysInMonth).padStart(2,'0')}`
+
+  const { entries, absences } = await api.getEntries(monthFrom, monthTo)
+
+  const wb = XLSX.utils.book_new()
+  if (!wb.Workbook) wb.Workbook = {}
+  if (!wb.Workbook.Sheets) wb.Workbook.Sheets = []
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+    const tabName = `${String(day).padStart(2,'0')}.${String(month).padStart(2,'0')}`
+
+    const rows = buildDayRows(data.employees, data.departments, entries, absences, d, t)
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = COL_WIDTHS
+    XLSX.utils.book_append_sheet(wb, ws, tabName)
+
+    const weekIdx = Math.floor((day - 1) / 7)
+    const tabColor = WEEK_TAB_COLORS[weekIdx % WEEK_TAB_COLORS.length]
+    while (wb.Workbook.Sheets.length < day) wb.Workbook.Sheets.push({})
+    wb.Workbook.Sheets[day - 1].tabColor = { rgb: tabColor }
+  }
+
+  const ym = `${year}-${String(month).padStart(2,'0')}`
+  XLSX.writeFile(wb, `Pianifica_mese_${ym}.xlsx`)
+}
+
+function generateMailText(data, date, t, locale) {
+  const dateStr = fmtLong(date, locale)
+  const sep = '─'.repeat(44)
+  const lines = [t('export.mailTitle', { date: dateStr }), '='.repeat(60)]
+
+  for (const emp of data.employees) {
+    const dep = data.departments.find((d) => d.id === emp.departmentId)
+    const absence = getAbsence(data, date, emp.id)
+    const acts = getEntries(data, date, emp.id)
+    const total = empDayTotal(data, date, emp.id)
+
+    lines.push('')
+    lines.push(`${emp.name} (${emp.role} — ${dep?.name || '—'})`)
+    lines.push(sep)
+
+    if (absence) {
+      lines.push(t('export.mailAbsence', { type: t(`absence.${absence}.label`) }))
+    } else if (acts.length > 0) {
+      for (const act of acts) {
+        const h = Number(act.hours) || 0
+        const note = act.notes ? ` (${act.notes})` : ''
+        lines.push(`• ${act.activity}: ${fmtHours(h)}h${note}`)
+      }
+      lines.push(t('export.mailTotal', { h: fmtHours(total) }))
+    } else {
+      lines.push(t('export.mailNoActivity'))
+    }
+  }
+
+  return lines.join('\n')
+}
+
+/* --------------------------------------------------------- EXPORT MAIL MODAL */
+function ExportMailModal({ data, date, onClose }) {
+  const { t, locale } = useI18n()
+  const [copied, setCopied] = useState(false)
+  const text = useMemo(() => generateMailText(data, date, t, locale), [data, date, t, locale])
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // fallback for older browsers
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const downloadTxt = () => {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Pianifica_mail_${date}.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal export-modal">
+        <div className="modal-head">
+          <div>
+            <div className="name">{t('export.mailBtn')}</div>
+          </div>
+          <button className="x" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body export-mail-body">
+          <pre className="mail-preview">{text}</pre>
+        </div>
+        <div className="modal-foot">
+          <button className="btn-icon" onClick={onClose}>{t('modal.cancel')}</button>
+          <div className="grow"></div>
+          <button className="btn-icon" onClick={downloadTxt}>{t('export.mailDownload')}</button>
+          <button className="btn-icon primary" onClick={copyToClipboard}>
+            {copied ? t('export.mailCopied') : t('export.mailCopy')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* -------------------------------------------------------- EXPORT EXCEL MODAL */
+function ExportExcelModal({ data, date, onClose }) {
+  const { t, locale } = useI18n()
+  const [mode, setMode] = useState('today')
+  const [exporting, setExporting] = useState(false)
+  const [errMsg, setErrMsg] = useState('')
+
+  const handleExport = async () => {
+    setExporting(true)
+    setErrMsg('')
+    try {
+      if (mode === 'today') await doExportToday(data, t, locale)
+      else if (mode === 'week') await doExportWeek(data, date, t, locale)
+      else await doExportMonth(data, date, t, locale)
+      onClose()
+    } catch (err) {
+      setErrMsg(err.message || 'Errore export')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal export-modal">
+        <div className="modal-head">
+          <div><div className="name">{t('export.excelTitle')}</div></div>
+          <button className="x" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <label className="export-option">
+            <input type="radio" name="xmode" value="today" checked={mode === 'today'} onChange={() => setMode('today')} />
+            <span>{t('export.todayOption')}</span>
+          </label>
+          <label className="export-option">
+            <input type="radio" name="xmode" value="week" checked={mode === 'week'} onChange={() => setMode('week')} />
+            <span>{t('export.weekOption')}</span>
+          </label>
+          <label className="export-option">
+            <input type="radio" name="xmode" value="month" checked={mode === 'month'} onChange={() => setMode('month')} />
+            <span>{t('export.monthOption')}</span>
+          </label>
+          {errMsg && <div className="fld-note" style={{ marginTop: 12 }}>{errMsg}</div>}
+        </div>
+        <div className="modal-foot">
+          <div className="grow"></div>
+          <button className="btn-icon" onClick={onClose} disabled={exporting}>{t('modal.cancel')}</button>
+          <button className="btn-icon primary" onClick={handleExport} disabled={exporting}>
+            {exporting ? t('export.exporting') : t('export.exportBtn')}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
 
 /* ------------------------------------------------------------- DAY VIEW */
 export function DayView({ data, date, onOpen }) {
+  const { t, locale } = useI18n()
   const groups = employeesByDept(data)
   const total = dayTotalAll(data, date)
   const activeCount = data.employees.filter((e) => empHasDay(data, date, e.id)).length
+  const isToday = date === todayISO()
+
+  const [showMail, setShowMail] = useState(false)
+  const [showExcel, setShowExcel] = useState(false)
 
   return (
     <div>
       <div className="day-head">
-        <h1>{fmtLong(date)}</h1>
-        <div className="meta">
-          <b>{activeCount}</b> dipendenti pianificati · totale <b>{fmtHours(total)} h</b>
+        <h1>{fmtLong(date, locale)}</h1>
+        <div className="day-head-right">
+          <div className="meta">{t('day.planned', { n: activeCount, h: fmtHours(total) })}</div>
+          {isToday && (
+            <button className="btn-icon" style={{ fontSize: 12 }} onClick={() => setShowMail(true)}>
+              {t('export.mailBtn')}
+            </button>
+          )}
+          <button className="btn-icon" style={{ fontSize: 12 }} onClick={() => setShowExcel(true)}>
+            {t('export.excelBtn')}
+          </button>
         </div>
       </div>
       {groups.map(({ dep, list }) =>
@@ -147,14 +451,16 @@ export function DayView({ data, date, onOpen }) {
                         <>
                           <span className="abs-tag" style={{ '--chip': ABSENCE_TYPES[abs].color }}>
                             <span className="sdot" style={{ background: ABSENCE_TYPES[abs].color }}></span>
-                            {ABSENCE_TYPES[abs].label}
+                            {t(`absence.${abs}.label`)}
                           </span>
                           <span className="hours zero">—</span>
                         </>
                       ) : (
                         <>
                           <span className="acts">
-                            {acts.length === 0 ? 'Nessuna attività' : `${acts.length} attività`}
+                            {acts.length === 0
+                              ? t('day.noActivity')
+                              : `${acts.length} ${acts.length === 1 ? t('day.activity1') : t('day.activityN')}`}
                           </span>
                           <span className={'hours' + (h === 0 ? ' zero' : h === target ? ' ok' : ' warn')}>
                             {h === 0 ? '—' : (
@@ -176,15 +482,19 @@ export function DayView({ data, date, onOpen }) {
       {data.employees.length === 0 && (
         <div className="empty-state">
           <div className="ic">👥</div>
-          Nessun dipendente. Aggiungili dalle Impostazioni.
+          {t('day.noEmployees')}
         </div>
       )}
+
+      {showMail && <ExportMailModal data={data} date={date} onClose={() => setShowMail(false)} />}
+      {showExcel && <ExportExcelModal data={data} date={date} onClose={() => setShowExcel(false)} />}
     </div>
   )
 }
 
 /* ------------------------------------------------------------ WEEK VIEW */
 export function WeekView({ data, date, onOpenDate }) {
+  const { t, locale } = useI18n()
   const days = weekDays(date)
   const today = todayISO()
   const groups = employeesByDept(data)
@@ -194,10 +504,10 @@ export function WeekView({ data, date, onOpenDate }) {
       <table className="week">
         <thead>
           <tr>
-            <th className="col-emp">Dipendente</th>
+            <th className="col-emp">{t('week.employee')}</th>
             {days.map((d) => (
               <th key={d} className={d === today ? 'today' : ''}>
-                <div>{fmtWeekday(d)}</div>
+                <div>{fmtWeekday(d, locale)}</div>
                 <div className="dn">{fmtDayNum(d)}</div>
               </th>
             ))}
@@ -237,11 +547,20 @@ export function WeekView({ data, date, onOpenDate }) {
                         <td key={d} className={'hour-cell ' + (abs ? 'absent' : has ? 'has' : 'empty') + (d === today ? ' today-col' : '')}>
                           <button onClick={() => onOpenDate(emp, dep, d)}>
                             {abs ? (
-                              <span className="cell-abs" style={{ '--chip': ABSENCE_TYPES[abs].color }} title={ABSENCE_TYPES[abs].label}>
-                                {ABSENCE_TYPES[abs].short}
+                              <span
+                                className="cell-abs"
+                                style={{ '--chip': ABSENCE_TYPES[abs].color }}
+                                title={t(`absence.${abs}.label`)}
+                              >
+                                {t(`absence.${abs}.short`)}
                               </span>
                             ) : has ? (
-                              <span className={'hwrap ' + (full ? 'ok' : 'warn')} title={full ? `Giornata completa (${fmtHours(target)} h)` : `Diverso da ${fmtHours(target)} h previste`}>
+                              <span
+                                className={'hwrap ' + (full ? 'ok' : 'warn')}
+                                title={full
+                                  ? t('week.full', { h: fmtHours(target) })
+                                  : t('week.diff', { h: fmtHours(target) })}
+                              >
                                 {fmtHours(h)}<span className="hu">h</span>
                                 {!full && <span className="wdot"></span>}
                               </span>
@@ -263,6 +582,7 @@ export function WeekView({ data, date, onOpenDate }) {
 
 /* ----------------------------------------------------------- MONTH VIEW */
 export function MonthView({ data, date, onPickDay, onChangeMonth }) {
+  const { t, locale, dow } = useI18n()
   const cells = monthGrid(date)
   const today = todayISO()
   const max = Math.max(1, ...cells.map((d) => dayTotalAll(data, d)))
@@ -293,10 +613,10 @@ export function MonthView({ data, date, onPickDay, onChangeMonth }) {
   return (
     <div className="month-scroll" ref={wrapRef}>
       <div className="cal-hint">
-        <span className="chev">⌃</span> Scorri per cambiare mese <span className="chev">⌄</span>
+        <span className="chev">⌃</span> {t('month.scroll')} <span className="chev">⌄</span>
       </div>
       <div className={'cal ' + (dir > 0 ? 'slide-up' : dir < 0 ? 'slide-down' : '')} key={monthKey}>
-        {DOW.map((d) => <div className="dow" key={d}>{d}</div>)}
+        {dow.map((d) => <div className="dow" key={d}>{d}</div>)}
         {cells.map((d) => {
           const tot = dayTotalAll(data, d)
           const dim = !sameMonth(d, date)
@@ -311,7 +631,7 @@ export function MonthView({ data, date, onPickDay, onChangeMonth }) {
               {tot > 0 && (
                 <>
                   <div className="tot">{fmtHours(tot)} <span>h</span></div>
-                  <div className="sub">{count} {count === 1 ? 'persona' : 'persone'}</div>
+                  <div className="sub">{count} {count === 1 ? t('month.person1') : t('month.personN')}</div>
                 </>
               )}
               <div className="bar" style={{ '--intensity': tot > 0 ? 0.25 + 0.75 * (tot / max) : 0 }}></div>
@@ -325,6 +645,7 @@ export function MonthView({ data, date, onPickDay, onChangeMonth }) {
 
 /* ------------------------------------------------------------ YEAR VIEW */
 export function YearView({ data, date, onPickDay }) {
+  const { t, locale, dow } = useI18n()
   const year = fromISO(date).getFullYear()
   const today = todayISO()
   const months = Array.from({ length: 12 }, (_, m) => `${year}-${String(m + 1).padStart(2, '0')}-01`)
@@ -339,9 +660,9 @@ export function YearView({ data, date, onPickDay }) {
         const cells = monthGrid(m0)
         return (
           <div className="mini" key={m0}>
-            <h3>{fromISO(m0).toLocaleDateString('it-IT', { month: 'long' })}</h3>
+            <h3>{fromISO(m0).toLocaleDateString(locale, { month: 'long' })}</h3>
             <div className="mg">
-              {DOW.map((d) => (
+              {dow.map((d) => (
                 <div className="md blank" key={'h' + d} style={{ fontSize: 9, color: 'var(--faint)' }}>{d[0]}</div>
               ))}
               {cells.map((d) => {
@@ -357,7 +678,7 @@ export function YearView({ data, date, onPickDay }) {
                     key={d}
                     className={'md in' + (has ? ' has' : '') + (d === today ? ' today' : '')}
                     style={style}
-                    title={has ? `${fmtHours(tot)} h pianificate` : ''}
+                    title={has ? t('year.hours', { h: fmtHours(tot) }) : ''}
                     onClick={() => onPickDay(d)}
                   >
                     {fmtDayNum(d)}
@@ -380,8 +701,8 @@ const withTrailing = (list) => {
   return [...filled, emptyRow()]
 }
 
-// Props: data, ctx { emp, dep, date }, onSave(empId, date, activities, absenceType), onClose
 export function ActivityModal({ data, ctx, onSave, onClose }) {
+  const { t, locale } = useI18n()
   const { emp, dep, date } = ctx
   const [localAbsence, setLocalAbsence] = useState(() => getAbsence(data, date, emp.id))
   const [rows, setRows] = useState(() => withTrailing(getEntries(data, date, emp.id)))
@@ -425,7 +746,7 @@ export function ActivityModal({ data, ctx, onSave, onClose }) {
           </span>
           <div>
             <div className="name">{emp.name}</div>
-            <div className="sub">{emp.role} · {dep.name} · {fmtLong(date)}</div>
+            <div className="sub">{emp.role} · {dep.name} · {fmtLong(date, locale)}</div>
           </div>
           <button className="x" onClick={onClose}>✕</button>
         </div>
@@ -435,16 +756,16 @@ export function ActivityModal({ data, ctx, onSave, onClose }) {
             className={'status-chip' + (!localAbsence ? ' active' : '')}
             onClick={() => setLocalAbsence(null)}
           >
-            <span className="sdot" style={{ background: 'var(--accent)' }}></span>Presente
+            <span className="sdot" style={{ background: 'var(--accent)' }}></span>{t('modal.present')}
           </button>
-          {Object.entries(ABSENCE_TYPES).map(([key, t]) => (
+          {Object.entries(ABSENCE_TYPES).map(([key, at]) => (
             <button
               key={key}
               className={'status-chip' + (localAbsence === key ? ' active' : '')}
-              style={{ '--chip': t.color }}
+              style={{ '--chip': at.color }}
               onClick={() => setLocalAbsence(localAbsence === key ? null : key)}
             >
-              <span className="sdot" style={{ background: t.color }}></span>{t.label}
+              <span className="sdot" style={{ background: at.color }}></span>{t(`absence.${key}.label`)}
             </button>
           ))}
         </div>
@@ -452,14 +773,14 @@ export function ActivityModal({ data, ctx, onSave, onClose }) {
         <div className="modal-body">
           {localAbsence ? (
             <div className="absence-note" style={{ '--chip': ABSENCE_TYPES[localAbsence].color }}>
-              <span className="big">{ABSENCE_TYPES[localAbsence].label}</span>
+              <span className="big">{t(`absence.${localAbsence}.label`)}</span>
             </div>
           ) : (
             <>
               <div className="act-head">
-                <div>Attività</div>
-                <div style={{ textAlign: 'right' }}>Ore previste</div>
-                <div>Note</div>
+                <div>{t('modal.activityLabel')}</div>
+                <div style={{ textAlign: 'right' }}>{t('modal.hoursLabel')}</div>
+                <div>{t('modal.notesLabel')}</div>
                 <div></div>
               </div>
               <div className="act-table">
@@ -469,7 +790,7 @@ export function ActivityModal({ data, ctx, onSave, onClose }) {
                     <div className={'act-row' + (trailing ? ' ghost' : '')} key={r.id}>
                       <textarea
                         rows={1}
-                        placeholder={trailing ? 'Nuova attività…' : 'Descrizione attività…'}
+                        placeholder={trailing ? t('modal.newActivity') : t('modal.activityDesc')}
                         value={r.activity}
                         onChange={(e) => editRow(r.id, 'activity', e.target.value)}
                       />
@@ -481,14 +802,14 @@ export function ActivityModal({ data, ctx, onSave, onClose }) {
                       />
                       <textarea
                         rows={1}
-                        placeholder="Note (facoltativo)"
+                        placeholder={t('modal.notesOpt')}
                         value={r.notes}
                         onChange={(e) => editRow(r.id, 'notes', e.target.value)}
                       />
                       {trailing ? (
                         <span className="del-spacer"></span>
                       ) : (
-                        <button className="del" onClick={() => delRow(r.id)} title="Elimina riga">✕</button>
+                        <button className="del" onClick={() => delRow(r.id)} title={t('modal.deleteRow')}>✕</button>
                       )}
                     </div>
                   )
@@ -500,12 +821,12 @@ export function ActivityModal({ data, ctx, onSave, onClose }) {
 
         <div className="modal-foot">
           <div className="total">
-            Totale ore previste: <b>{fmtHours(total)}</b>
+            {t('modal.totalHours')} <b>{fmtHours(total)}</b>
           </div>
           <div className="grow"></div>
-          <button className="btn-icon" onClick={onClose} disabled={saving}>Annulla</button>
+          <button className="btn-icon" onClick={onClose} disabled={saving}>{t('modal.cancel')}</button>
           <button className="btn-icon primary" onClick={handleDone} disabled={saving}>
-            {saving ? 'Salvo…' : 'Fatto'}
+            {saving ? t('modal.saving') : t('modal.done')}
           </button>
         </div>
       </div>

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
 from .routers import auth, account, departments, employees, entries
 from .routers import log as log_router
+from .routers import logo as logo_router
 from .logging_config import setup_logging, get_logger
 
 
@@ -53,6 +54,7 @@ app.include_router(departments.router)
 app.include_router(employees.router)
 app.include_router(entries.router)
 app.include_router(log_router.router)
+app.include_router(logo_router.router)
 
 
 @app.exception_handler(RequestValidationError)
