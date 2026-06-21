@@ -178,6 +178,16 @@ alembic upgrade head   # only if there are new migrations
 uvicorn backend.main:app
 ```
 
+## Deployment
+
+See [DEPLOY.md](DEPLOY.md) for full instructions covering:
+- Local development setup
+- Production single-process deployment
+- systemd service configuration
+- nginx reverse proxy with TLS
+- GitHub repository setup and update procedure
+- Backup, environment variables, and production security checklist
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

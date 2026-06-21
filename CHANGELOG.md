@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [1.5.1] — 2026-06-21
+
+### Fixed
+- **Critical: master account 500 on all authenticated endpoints** — `models.Account.__new__` bypassed SQLAlchemy 2.x instance-state initialisation, causing `AttributeError: 'Account' has no attribute '_sa_instance_state'` on every request authenticated as the master account. Fixed by returning `types.SimpleNamespace` instead of an uninitialised ORM model.
+- **Validation log bloat** — `RequestValidationError` handler now strips raw `input` values from the log line (oversized payloads were written verbatim, up to 1000+ chars per line). Full detail still returned to the caller.
+
+### Changed
+- `backend/auth.py`: master virtual account uses `SimpleNamespace` instead of `Account.__new__`.
+- `backend/main.py`: validation warning log omits `'input'` field from each error entry.
+
+---
+
 ## [1.5.0] — 2026-06-21
 
 ### Added

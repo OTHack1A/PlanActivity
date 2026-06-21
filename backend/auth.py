@@ -2,6 +2,7 @@ import os
 import hmac as _hmac
 import secrets
 from pathlib import Path
+from types import SimpleNamespace
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
 from datetime import datetime, timedelta, timezone
@@ -91,12 +92,12 @@ def current_account(
 
     # Account master: non esiste nel DB, restituisce oggetto virtuale
     if account_id == MASTER_ID:
-        acc = models.Account.__new__(models.Account)
-        acc.id = MASTER_ID
-        acc.user = "Melo"
-        acc.company = ""
-        acc.password_hash = ""
-        return acc
+        return SimpleNamespace(
+            id=MASTER_ID,
+            user="Melo",
+            company="",
+            password_hash="",
+        )
 
     acc = db.get(models.Account, account_id)
     if not acc:
