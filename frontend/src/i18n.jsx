@@ -48,6 +48,7 @@ const LANGS = {
     'view.month': 'Mese',
     'view.year': 'Anno',
 
+    'day.prevDay': '← Giorno prec.',
     'day.planned': '{n} dipendenti pianificati · totale {h} h',
     'day.noEmployees': 'Nessun dipendente. Aggiungili dalle Impostazioni.',
     'day.noActivity': 'Nessuna attività',
@@ -78,6 +79,7 @@ const LANGS = {
     'settings.empRole': 'Mansione',
     'settings.deleteDeptConfirm': 'Eliminando questo reparto verranno eliminati anche {n} dipendenti e le relative attività. Procedere?',
     'settings.deptEmpHead': 'Dipendente · reparto',
+    'settings.satHalfDay': 'Sabato mezza giornata (4 h)',
 
     'account.title': 'Account',
     'account.changePassword': 'Cambia password',
@@ -212,6 +214,7 @@ const LANGS = {
     'view.month': 'Month',
     'view.year': 'Year',
 
+    'day.prevDay': '← Prev. day',
     'day.planned': '{n} employees scheduled · total {h} h',
     'day.noEmployees': 'No employees. Add them in Settings.',
     'day.noActivity': 'No activities',
@@ -242,6 +245,7 @@ const LANGS = {
     'settings.empRole': 'Role',
     'settings.deleteDeptConfirm': 'Deleting this department will also delete {n} employees and their activities. Proceed?',
     'settings.deptEmpHead': 'Employee · department',
+    'settings.satHalfDay': 'Saturday half-day (4 h)',
 
     'account.title': 'Account',
     'account.changePassword': 'Change password',
@@ -373,6 +377,7 @@ const LANGS = {
     'view.month': 'Mes',
     'view.year': 'Año',
 
+    'day.prevDay': '← Día ant.',
     'day.planned': '{n} empleados planificados · total {h} h',
     'day.noEmployees': 'Sin empleados. Añádelos en Configuración.',
     'day.noActivity': 'Sin actividades',
@@ -403,6 +408,7 @@ const LANGS = {
     'settings.empRole': 'Cargo',
     'settings.deleteDeptConfirm': 'Eliminar este departamento también eliminará {n} empleados y sus actividades. ¿Proceder?',
     'settings.deptEmpHead': 'Empleado · departamento',
+    'settings.satHalfDay': 'Sábado media jornada (4 h)',
 
     'account.title': 'Cuenta',
     'account.changePassword': 'Cambiar contraseña',
@@ -534,6 +540,7 @@ const LANGS = {
     'view.month': 'Місяць',
     'view.year': 'Рік',
 
+    'day.prevDay': '← Поп. день',
     'day.planned': '{n} працівників заплановано · всього {h} год',
     'day.noEmployees': 'Немає працівників. Додайте їх у Налаштуваннях.',
     'day.noActivity': 'Немає активностей',
@@ -564,6 +571,7 @@ const LANGS = {
     'settings.empRole': 'Посада',
     'settings.deleteDeptConfirm': 'Видалення цього відділу також видалить {n} працівників та їхні активності. Продовжити?',
     'settings.deptEmpHead': 'Працівник · відділ',
+    'settings.satHalfDay': 'Субота пів дня (4 год)',
 
     'account.title': 'Обліковий запис',
     'account.changePassword': 'Змінити пароль',

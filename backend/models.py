@@ -68,6 +68,13 @@ class Activity(Base):
     employee: Mapped["Employee"] = relationship("Employee", back_populates="activities")
 
 
+class AppSettings(Base):
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[str] = mapped_column(String, nullable=False, default="")
+
+
 class Absence(Base):
     __tablename__ = "absences"
 

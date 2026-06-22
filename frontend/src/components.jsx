@@ -4,7 +4,7 @@ import {
   todayISO, addDays, addMonths, fromISO,
   fmtLong, fmtMonthYear, fmtWeekday, fmtDayNum,
   startOfWeek, weekDays, monthGrid, sameMonth,
-  uid, DEPT_COLORS,
+  uid, DEPT_COLORS, isSunday, isSaturday,
   getEntries, empDayTotal, empHasDay, dayTotalAll, employeesByDept, fmtHours,
   ABSENCE_TYPES, getAbsence,
 } from './store.js'
@@ -18,6 +18,10 @@ export { initials }
 
 const STD_HOURS = 8
 const empTarget = (emp) => STD_HOURS + (Number(emp && emp.overtime) || 0)
+const empDayTarget = (emp, dateISO, satHalfDay) => {
+  if (satHalfDay && isSaturday(dateISO)) return 4
+  return empTarget(emp)
+}
 
 /* ---------------------------------------------------------------- AVATAR */
 function AvatarImg({ emp }) {
@@ -389,12 +393,13 @@ function ExportExcelModal({ data, date, onClose }) {
 }
 
 /* ------------------------------------------------------------- DAY VIEW */
-export function DayView({ data, date, onOpen }) {
+export function DayView({ data, date, onOpen, onPrevDay, satHalfDay }) {
   const { t, locale } = useI18n()
   const groups = employeesByDept(data)
   const total = dayTotalAll(data, date)
   const activeCount = data.employees.filter((e) => empHasDay(data, date, e.id)).length
   const isToday = date === todayISO()
+  const sunday = isSunday(date)
 
   const [showMail, setShowMail] = useState(false)
   const [showExcel, setShowExcel] = useState(false)
@@ -402,7 +407,14 @@ export function DayView({ data, date, onOpen }) {
   return (
     <div>
       <div className="day-head">
-        <h1>{fmtLong(date, locale)}</h1>
+        <div className="day-head-left">
+          <h1 className={sunday ? 'sun' : ''}>{fmtLong(date, locale)}</h1>
+          {onPrevDay && (
+            <button className="btn-icon btn-prevday" onClick={onPrevDay} style={{ fontSize: 12 }}>
+              {t('day.prevDay')}
+            </button>
+          )}
+        </div>
         <div className="day-head-right">
           <div className="meta">{t('day.planned', { n: activeCount, h: fmtHours(total) })}</div>
           {isToday && (
@@ -427,7 +439,7 @@ export function DayView({ data, date, onOpen }) {
               {list.map((emp) => {
                 const acts = getEntries(data, date, emp.id)
                 const h = empDayTotal(data, date, emp.id)
-                const target = empTarget(emp)
+                const target = empDayTarget(emp, date, satHalfDay)
                 const abs = getAbsence(data, date, emp.id)
                 return (
                   <button
@@ -493,7 +505,7 @@ export function DayView({ data, date, onOpen }) {
 }
 
 /* ------------------------------------------------------------ WEEK VIEW */
-export function WeekView({ data, date, onOpenDate }) {
+export function WeekView({ data, date, onOpenDate, satHalfDay }) {
   const { t, locale } = useI18n()
   const days = weekDays(date)
   const today = todayISO()
@@ -506,7 +518,7 @@ export function WeekView({ data, date, onOpenDate }) {
           <tr>
             <th className="col-emp">{t('week.employee')}</th>
             {days.map((d) => (
-              <th key={d} className={d === today ? 'today' : ''}>
+              <th key={d} className={(d === today ? 'today' : '') + (isSunday(d) ? ' sun' : '')}>
                 <div>{fmtWeekday(d, locale)}</div>
                 <div className="dn">{fmtDayNum(d)}</div>
               </th>
@@ -541,10 +553,10 @@ export function WeekView({ data, date, onOpenDate }) {
                       const h = empDayTotal(data, d, emp.id)
                       const has = h > 0
                       const abs = getAbsence(data, d, emp.id)
-                      const target = empTarget(emp)
+                      const target = empDayTarget(emp, d, satHalfDay)
                       const full = h === target
                       return (
-                        <td key={d} className={'hour-cell ' + (abs ? 'absent' : has ? 'has' : 'empty') + (d === today ? ' today-col' : '')}>
+                        <td key={d} className={'hour-cell ' + (abs ? 'absent' : has ? 'has' : 'empty') + (d === today ? ' today-col' : '') + (isSunday(d) ? ' sun-col' : '')}>
                           <button onClick={() => onOpenDate(emp, dep, d)}>
                             {abs ? (
                               <span
@@ -616,7 +628,7 @@ export function MonthView({ data, date, onPickDay, onChangeMonth }) {
         <span className="chev">⌃</span> {t('month.scroll')} <span className="chev">⌄</span>
       </div>
       <div className={'cal ' + (dir > 0 ? 'slide-up' : dir < 0 ? 'slide-down' : '')} key={monthKey}>
-        {dow.map((d) => <div className="dow" key={d}>{d}</div>)}
+        {dow.map((d, i) => <div className={'dow' + (i === 6 ? ' sun' : '')} key={d}>{d}</div>)}
         {cells.map((d) => {
           const tot = dayTotalAll(data, d)
           const dim = !sameMonth(d, date)
@@ -624,10 +636,10 @@ export function MonthView({ data, date, onPickDay, onChangeMonth }) {
           return (
             <button
               key={d}
-              className={'cell' + (dim ? ' dim' : '') + (d === today ? ' today' : '')}
+              className={'cell' + (dim ? ' dim' : '') + (d === today ? ' today' : '') + (isSunday(d) ? ' sun-cell' : '')}
               onClick={() => onPickDay(d)}
             >
-              <div className="dn">{fmtDayNum(d)}</div>
+              <div className={'dn' + (isSunday(d) ? ' sun' : '')}>{fmtDayNum(d)}</div>
               {tot > 0 && (
                 <>
                   <div className="tot">{fmtHours(tot)} <span>h</span></div>
@@ -662,21 +674,22 @@ export function YearView({ data, date, onPickDay }) {
           <div className="mini" key={m0}>
             <h3>{fromISO(m0).toLocaleDateString(locale, { month: 'long' })}</h3>
             <div className="mg">
-              {dow.map((d) => (
-                <div className="md blank" key={'h' + d} style={{ fontSize: 9, color: 'var(--faint)' }}>{d[0]}</div>
+              {dow.map((d, i) => (
+                <div className={'md blank' + (i === 6 ? ' sun' : '')} key={'h' + d} style={{ fontSize: 9, color: i === 6 ? 'var(--sun-color)' : 'var(--faint)' }}>{d[0]}</div>
               ))}
               {cells.map((d) => {
                 const inMonth = sameMonth(d, m0)
                 if (!inMonth) return <div className="md blank" key={d}></div>
                 const tot = dayTotalAll(data, d)
                 const has = tot > 0
+                const sun = isSunday(d)
                 const style = has
                   ? { background: `oklch(0.55 0.13 255 / ${0.3 + 0.7 * (tot / max)})` }
                   : {}
                 return (
                   <div
                     key={d}
-                    className={'md in' + (has ? ' has' : '') + (d === today ? ' today' : '')}
+                    className={'md in' + (has ? ' has' : '') + (d === today ? ' today' : '') + (sun ? ' sun' : '')}
                     style={style}
                     title={has ? t('year.hours', { h: fmtHours(tot) }) : ''}
                     onClick={() => onPickDay(d)}

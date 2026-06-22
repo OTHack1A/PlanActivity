@@ -91,6 +91,11 @@ export const logPublicEvent = (action) => {
   }).catch(() => {})
 }
 
+// --- Settings ---
+export const getSettings = () => req('/settings')
+export const patchSettings = (patch) =>
+  req('/settings', { method: 'PATCH', body: JSON.stringify(patch) })
+
 // --- Logo ---
 export const getLogoStatus = () => req('/logo/status')
 

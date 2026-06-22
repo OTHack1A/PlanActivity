@@ -62,6 +62,9 @@ export const sameMonth = (iso, refIso) => {
 
 export const uid = () => Math.random().toString(36).slice(2, 9)
 
+export const isSunday = (iso) => fromISO(iso).getDay() === 0
+export const isSaturday = (iso) => fromISO(iso).getDay() === 6
+
 export const DEPT_COLORS = [
   'oklch(0.72 0.15 250)',
   'oklch(0.75 0.15 165)',

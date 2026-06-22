@@ -567,3 +567,26 @@ select option { background: var(--elevated); color: var(--text); }
 }
 .export-option:last-of-type { border-bottom: 0; }
 .export-option input[type=radio] { margin-top: 2px; accent-color: var(--accent); flex: none; }
+
+/* ---------- domenica in rosso ---------- */
+:root { --sun-color: oklch(0.52 0.22 25); }
+.sun { color: var(--sun-color) !important; }
+.cal .cell.sun-cell .dn { color: var(--sun-color); }
+.cal .cell.sun-cell:not(.dim) { border-color: oklch(0.52 0.22 25 / 0.18); }
+table.week th.sun { color: var(--sun-color) !important; }
+table.week th.sun .dn { color: var(--sun-color) !important; }
+.hour-cell.sun-col { background: oklch(0.52 0.22 25 / 0.04); }
+.mini .md.sun { color: var(--sun-color) !important; }
+
+/* ---------- day-head con pulsante giorno precedente ---------- */
+.day-head-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.btn-prevday { opacity: 0.75; }
+.btn-prevday:hover { opacity: 1; }
+
+/* ---------- toggle sabato impostazioni ---------- */
+.settings-general { max-width: 420px; }
+.sat-toggle {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  font-size: 14px; color: var(--text); user-select: none;
+}
+.sat-toggle input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }

@@ -98,6 +98,16 @@ class EntriesOut(BaseModel):
     absences: dict
 
 
+# --- Settings ---
+
+class SettingsOut(BaseModel):
+    saturday_half_day: bool = False
+
+
+class SettingsPatch(BaseModel):
+    saturday_half_day: Optional[bool] = None
+
+
 # --- Log ---
 
 class LogEventIn(BaseModel):

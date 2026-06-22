@@ -427,7 +427,7 @@ function LogViewer() {
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
-function Settings({ data, onReload }) {
+function Settings({ data, onReload, settings, onSettingsChange }) {
   const { t } = useI18n()
   const [depName, setDepName] = useState('')
   const [depColor, setDepColor] = useState(
@@ -521,9 +521,27 @@ function Settings({ data, onReload }) {
     if (!empDep && data.departments[0]) setEmpDep(data.departments[0].id)
   }, [data.departments])
 
+  const toggleSatHalfDay = async () => {
+    const next = !settings.saturday_half_day
+    await api.patchSettings({ saturday_half_day: next })
+    onSettingsChange({ ...settings, saturday_half_day: next })
+  }
+
   return (
     <div className="wrap settings">
       <h1>{t('settings.title')}</h1>
+
+      <div className="panel settings-general" style={{ marginBottom: 20 }}>
+        <label className="sat-toggle">
+          <input
+            type="checkbox"
+            checked={settings.saturday_half_day}
+            onChange={toggleSatHalfDay}
+          />
+          <span>{t('settings.satHalfDay')}</span>
+        </label>
+      </div>
+
       <div className="set-cols">
         {/* REPARTI */}
         <div className="panel">
@@ -661,6 +679,7 @@ export default function App() {
   const [screen, setScreen] = useState('loading')
   const [data, setData] = useState({ departments: [], employees: [], entries: {}, absences: {} })
   const [company, setCompany] = useState('')
+  const [settings, setSettings] = useState({ saturday_half_day: false })
   const [page, setPage] = useState('calendar')
   const [view, setView] = useState('day')
   const [date, setDate] = useState(todayISO)
@@ -709,10 +728,11 @@ export default function App() {
 
   useEffect(() => {
     if (screen !== 'app') return
-    Promise.all([api.getDepartments(), api.getEmployees(), api.getAccount()])
-      .then(([depts, emps, acc]) => {
+    Promise.all([api.getDepartments(), api.getEmployees(), api.getAccount(), api.getSettings()])
+      .then(([depts, emps, acc, sett]) => {
         setData((prev) => ({ ...prev, departments: depts, employees: emps }))
         setCompany(acc?.company || '')
+        if (sett) setSettings(sett)
         return loadEntries(view, date)
       })
       .catch((err) => {
@@ -778,7 +798,7 @@ export default function App() {
       />
 
       {page === 'settings' ? (
-        <div className="body"><Settings data={data} onReload={onReload} /></div>
+        <div className="body"><Settings data={data} onReload={onReload} settings={settings} onSettingsChange={setSettings} /></div>
       ) : page === 'account' ? (
         <div className="body"><Account onBack={() => setPage('calendar')} /></div>
       ) : page === 'log' ? (
@@ -786,8 +806,8 @@ export default function App() {
       ) : (
         <div className="body">
           <div className="wrap">
-            {view === 'day' && <DayView data={data} date={date} onOpen={(emp, dep) => openModal(emp, dep, date)} />}
-            {view === 'week' && <WeekView data={data} date={date} onOpenDate={(emp, dep, d) => openModal(emp, dep, d)} />}
+            {view === 'day' && <DayView data={data} date={date} onOpen={(emp, dep) => openModal(emp, dep, date)} onPrevDay={() => setDate(addDays(date, -1))} satHalfDay={settings.saturday_half_day} />}
+            {view === 'week' && <WeekView data={data} date={date} onOpenDate={(emp, dep, d) => openModal(emp, dep, d)} satHalfDay={settings.saturday_half_day} />}
             {view === 'month' && <MonthView data={data} date={date} onPickDay={pickDay} onChangeMonth={(dir) => setDate(addMonths(date, dir))} />}
             {view === 'year' && <YearView data={data} date={date} onPickDay={pickDay} />}
           </div>

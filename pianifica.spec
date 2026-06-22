@@ -19,6 +19,9 @@ _h11_d,       _h11_b,       _h11_h       = collect_all("h11")
 _httptools_d, _httptools_b, _httptools_h  = collect_all("httptools")
 _multipart_d, _multipart_b, _multipart_h = collect_all("multipart")
 _dotenv_d,    _dotenv_b,    _dotenv_h    = collect_all("dotenv")
+_argon2_d,    _argon2_b,    _argon2_h    = collect_all("argon2")
+_pystray_d,   _pystray_b,   _pystray_h   = collect_all("pystray")
+_pil_d,       _pil_b,       _pil_h       = collect_all("PIL")
 
 a = Analysis(
     ["run.py"],
@@ -26,12 +29,16 @@ a = Analysis(
     binaries=(
         _uvicorn_b + _starlette_b + _fastapi_b + _sqlalchemy_b
         + _h11_b + _httptools_b + _multipart_b + _dotenv_b
+        + _argon2_b + _pystray_b + _pil_b
     ),
     datas=[
         # Bundle the pre-built React frontend
         ("frontend/dist", "frontend/dist"),
+        # Tray icon accessible at runtime
+        ("logo.ico", "."),
         *_uvicorn_d, *_starlette_d, *_fastapi_d, *_sqlalchemy_d,
         *_h11_d, *_httptools_d, *_multipart_d, *_dotenv_d,
+        *_argon2_d, *_pystray_d, *_pil_d,
     ],
     hiddenimports=[
         # SQLAlchemy SQLite dialect
@@ -52,6 +59,7 @@ a = Analysis(
         "argon2._utils",
         "argon2.low_level",
         "argon2.profiles",
+        "_argon2_cffi_bindings",
         # python-dotenv
         "dotenv",
         # Uvicorn internals
@@ -69,11 +77,21 @@ a = Analysis(
         "uvicorn.lifespan",
         "uvicorn.lifespan.on",
         "uvicorn.lifespan.off",
+        # pystray Windows backend
+        "pystray._win32",
+        # PIL / Pillow
+        "PIL",
+        "PIL.Image",
+        "PIL.IcoImagePlugin",
+        "PIL.PngImagePlugin",
         # Email (used internally by some starlette dependencies)
         "email.mime.multipart",
         "email.mime.text",
+        # winreg for autostart (built-in on Windows)
+        "winreg",
         *_uvicorn_h, *_starlette_h, *_fastapi_h, *_sqlalchemy_h,
         *_h11_h, *_httptools_h, *_multipart_h, *_dotenv_h,
+        *_argon2_h, *_pystray_h, *_pil_h,
     ],
     hookspath=[],
     hooksconfig={},
@@ -81,7 +99,7 @@ a = Analysis(
     excludes=[
         # Exclude heavy unused packages to keep exe size down
         "tkinter", "matplotlib", "numpy", "pandas",
-        "PIL", "cv2", "scipy", "IPython",
+        "cv2", "scipy", "IPython",
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
