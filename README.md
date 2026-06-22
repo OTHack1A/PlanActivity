@@ -7,6 +7,9 @@ Daily activity planner for workshop employees. Manage departments, staff, activi
 ## Features
 
 - **Multiple views**: Day, Week, Month, Year
+- **Previous day button** — quick navigation from the Day view
+- **Sundays in red** — highlighted across all calendar views
+- **Saturday half-day** — optional setting to count Saturday as 4 h instead of 8 h
 - **Departments & employees** with profile photos and overtime hours
 - **Daily activities** with planned hours and notes
 - **Absences**: vacation, sick leave, leave of absence
@@ -23,11 +26,12 @@ Daily activity planner for workshop employees. Manage departments, staff, activi
 
 ## Quick start — Windows (no installation required)
 
-1. Download **`pianifica.exe`** from the [Releases](../../releases) page
-2. Place it in any folder (e.g. `C:\PlanActivity\`)
-3. Double-click to launch — no console window appears
-4. Open **http://127.0.0.1:16853** in your browser
-5. Create your account on first access
+1. Download **`pianifica-windows.exe`** from the [Releases](../../releases) page
+2. Rename it to `pianifica.exe` and place it in any folder (e.g. `C:\PlanActivity\`)
+3. Double-click to launch — no console window, your browser opens automatically
+4. Create your account on first access
+
+> The app runs silently in the background. To stop it: **Task Manager → `pianifica.exe` → End Task**.
 
 The app creates its data folder automatically:
 
@@ -39,6 +43,9 @@ C:\PlanActivity\
     ├── pianifica.db       ← SQLite database
     └── .secret            ← auto-generated JWT key
 ```
+
+> If the folder is read-only (e.g. `Program Files`), data is stored in
+> `%LOCALAPPDATA%\Pianifica\data\` instead.
 
 To stop the app: Task Manager → `pianifica.exe` → End Task  
 To update: replace `pianifica.exe` (the `data\` folder is never touched)
@@ -135,18 +142,32 @@ Open **http://localhost:5173**. The first visit shows the registration screen.
 
 ---
 
-## Build the Windows executable
+## Build executables
+
+### Local build (current platform)
 
 ```powershell
 .venv\Scripts\Activate.ps1
 cd frontend && npm run build && cd ..
-pyinstaller pianifica.spec
+pyinstaller pianifica.spec --noconfirm
 ```
 
-Output: `dist\pianifica.exe` (~27 MB, self-contained, no installer needed).
+Output: `dist\pianifica.exe` (Windows) or `dist/pianifica` (Linux/macOS).
 
-> Linux and macOS builds require running the same command on the target platform.
-> See [DEPLOY.md](DEPLOY.md) for platform-specific instructions.
+### Automated multi-platform release (GitHub Actions)
+
+Push a version tag to trigger automatic builds for all three platforms:
+
+```powershell
+git tag v1.6.0
+git push origin v1.6.0
+```
+
+GitHub Actions (`.github/workflows/release.yml`) will build on `windows-latest`,
+`ubuntu-latest`, and `macos-latest`, then publish `pianifica-windows.exe`,
+`pianifica-linux`, and `pianifica-macos` as a GitHub Release.
+
+> See [DEPLOY.md](DEPLOY.md) for platform-specific instructions and server deployment.
 
 ---
 

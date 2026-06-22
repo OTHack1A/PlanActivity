@@ -1,0 +1,146 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Windows ──────────────────────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: pip install -r backend/requirements.txt pyinstaller
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Build Windows executable
+        run: pyinstaller pianifica.spec --noconfirm
+
+      - name: Rename artifact
+        run: mv dist/pianifica.exe dist/pianifica-windows.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pianifica-windows
+          path: dist/pianifica-windows.exe
+
+  # ── Linux ────────────────────────────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: pip install -r backend/requirements.txt pyinstaller
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Build Linux binary
+        run: pyinstaller pianifica.spec --noconfirm
+
+      - name: Rename artifact
+        run: mv dist/pianifica dist/pianifica-linux
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pianifica-linux
+          path: dist/pianifica-linux
+
+  # ── macOS ────────────────────────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: pip install -r backend/requirements.txt pyinstaller
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Build macOS binary
+        run: pyinstaller pianifica.spec --noconfirm
+
+      - name: Rename artifact
+        run: mv dist/pianifica dist/pianifica-macos
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pianifica-macos
+          path: dist/pianifica-macos
+
+  # ── GitHub Release ───────────────────────────────────────────────────────
+  release:
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/pianifica-windows/pianifica-windows.exe
+            artifacts/pianifica-linux/pianifica-linux
+            artifacts/pianifica-macos/pianifica-macos
+          generate_release_notes: true
+          body: |
+            ## Downloads
+
+            | Platform | File |
+            |----------|------|
+            | Windows  | `pianifica-windows.exe` |
+            | Linux    | `pianifica-linux` |
+            | macOS    | `pianifica-macos` |
+
+            **Windows**: double-click to run. No installer required.
+            **Linux/macOS**: `chmod +x pianifica-linux && ./pianifica-linux`
+
+            Data folder and database are created automatically next to the executable.
+            To update: replace the binary — the `data/` folder is never touched.

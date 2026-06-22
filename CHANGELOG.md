@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here.
 
+## [1.6.0] — 2026-06-22
+
+### Added
+- **Previous day button** — Day view now has a ← button to navigate to the previous day without opening the date picker.
+- **Sundays in red** — All calendar views (Day, Week, Month, Year) highlight Sunday dates with a red colour (`--sun-color`).
+- **Saturday half-day setting** — New toggle in Settings: when enabled, Saturday counts as 4 working hours instead of 8. Applied to all views and hour totals. Persisted in the `app_settings` table.
+- **GitHub Actions CI/CD** — `.github/workflows/release.yml` builds Windows, Linux, and macOS binaries automatically on every tag push and publishes them as a GitHub Release.
+
+### Changed
+- **Launcher simplified** — `run.py` no longer uses pystray or Windows registry autostart. The app runs silently in the background; the browser opens automatically on first launch. To stop: Task Manager → `pianifica.exe` → End Task.
+- **Top-level imports in run.py** — `uvicorn` and backend modules are now imported at module load time (not lazily inside `main()`), eliminating `ModuleNotFoundError` in frozen executables.
+- **Robust startup error logging** — any fatal error during startup is written to `pianifica.log` via an emergency fallback logger, even if the main logging system has not yet initialised.
+- **Removed dependencies** — `pystray` and `Pillow` removed from `requirements.txt` and `pianifica.spec` (no longer needed).
+
+### Fixed
+- **Registration 500 on read-only folders** — `_paths.py` now tests write access next to the exe and falls back to `%LOCALAPPDATA%\Pianifica\data` automatically. Fixes "Internal Server Error" on first run when the exe is in a protected directory.
+- **SQLite file-lock robustness** — database engine now uses `timeout=30` to tolerate temporary locks from antivirus or other processes.
+
+---
+
 ## [1.5.1] — 2026-06-21
 
 ### Fixed
