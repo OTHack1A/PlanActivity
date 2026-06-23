@@ -5,7 +5,12 @@ All notable changes to this project are documented here.
 ## [1.6.1] — 2026-06-23
 
 ### Changed
-- **Network-wide access** — server now binds to `0.0.0.0` (all interfaces) instead of `127.0.0.1`. Every device on the local network can reach the app at `http://<server-ip>:16853`. The LAN IP is logged at startup for easy sharing.
+- **Network-wide access** — server now binds to `0.0.0.0` (all interfaces) instead of `127.0.0.1`. Every device on the local network can reach the app at `http://<server-ip>:16853`. The exact URL is written to `pianifica.log` at startup.
+- **No automatic browser open** — the browser is no longer opened automatically on launch. Open it manually at `http://127.0.0.1:16853` (local) or `http://<server-ip>:16853` (other devices).
+- Removed unused `webbrowser` and `time` imports from `run.py`.
+
+### Fixed
+- Accessing the app via the machine's own LAN IP from the same PC now works correctly (was broken when bound to `127.0.0.1`).
 
 ---
 

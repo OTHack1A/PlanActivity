@@ -28,11 +28,16 @@ Daily activity planner for workshop employees. Manage departments, staff, activi
 
 1. Download **`pianifica-windows.exe`** from the [Releases](../../releases) page
 2. Rename it to `pianifica.exe` and place it in any folder (e.g. `C:\PlanActivity\`)
-3. Double-click to launch — no console window, your browser opens automatically
-4. Create your account on first access
+3. Double-click to launch — no console window appears
+4. Open **http://127.0.0.1:16853** in your browser manually
+5. Create your account on first access
 
-> The app listens on all network interfaces. Other devices on your LAN can connect at
-> `http://<your-ip>:16853` (the exact URL is written to `pianifica.log` at startup).
+> **Other devices on the same network** can connect at `http://<server-ip>:16853`.
+> The exact address is written to `pianifica.log` at startup (look for the `rete:` line).
+>
+> **Windows Firewall**: the first time the app runs Windows may show a firewall prompt —
+> click **Allow access** to enable connections from other devices on the LAN.
+>
 > To stop: **Task Manager → `pianifica.exe` → End Task**.
 
 The app creates its data folder automatically:

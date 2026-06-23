@@ -2,8 +2,9 @@
 Pianifica — production launcher.
 
 Entry point for PyInstaller (pyinstaller pianifica.spec) and direct run (python run.py).
-The app runs as a background process: uvicorn serves the FastAPI+React app on all network
-interfaces so every device on the local network can reach it.
+The app runs as a background process: uvicorn listens on all network interfaces so every
+device on the local network can reach it at http://<server-ip>:16853.
+The browser is NOT opened automatically — open it manually after launch.
 To stop: Task Manager → pianifica.exe → End Task.
 """
 import asyncio
@@ -12,8 +13,6 @@ import os
 import socket
 import sys
 import threading
-import time
-import webbrowser
 from datetime import datetime
 from pathlib import Path
 
@@ -22,12 +21,12 @@ import uvicorn
 from backend.main import app
 from backend.logging_config import setup_logging, get_logger
 
-HOST = "0.0.0.0"   # listen on all interfaces — reachable from the local network
+HOST = "0.0.0.0"   # all interfaces — accessible from the local network
 PORT = 16853
 
 
 def _lan_ip() -> str:
-    """Return the LAN IP of this machine (best-guess via UDP probe, no traffic sent)."""
+    """Return the best-guess LAN IP via UDP probe (no traffic sent)."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -47,7 +46,7 @@ def _redirect_null_streams() -> None:
 
 
 def _emergency_log(message: str) -> None:
-    """Write to a plain log file when the logging system may not be set up yet."""
+    """Write to pianifica.log when the logging system is not yet initialised."""
     try:
         if getattr(sys, "frozen", False):
             log_path = Path(sys.executable).parent / "pianifica.log"
@@ -67,9 +66,9 @@ def main() -> None:
         logger = get_logger()
         lan = _lan_ip()
         logger.info(
-            f"Pianifica starting — "
-            f"local: http://127.0.0.1:{PORT}  "
-            f"network: http://{lan}:{PORT}"
+            f"Pianifica avviata — "
+            f"locale: http://127.0.0.1:{PORT}  "
+            f"rete: http://{lan}:{PORT}"
         )
 
         config = uvicorn.Config(
@@ -90,7 +89,7 @@ def main() -> None:
                 except Exception:
                     _emergency_log(msg)
 
-        # Non-daemon thread: keeps the process alive after main() returns (frozen mode).
+        # Non-daemon thread: keeps the process alive after main() returns.
         server_thread = threading.Thread(
             target=_run_server,
             daemon=False,
@@ -98,22 +97,15 @@ def main() -> None:
         )
         server_thread.start()
 
-        if getattr(sys, "frozen", False):
-            # Give uvicorn a moment to bind the port, then open the browser once.
-            time.sleep(1.5)
-            try:
-                webbrowser.open(f"http://127.0.0.1:{PORT}")
-            except Exception as exc:
-                logger.warning(f"Could not open browser: {exc}")
-            # main() returns here; the non-daemon server_thread keeps the process alive.
-        else:
-            # Dev mode: block until the server stops (Ctrl-C exits cleanly).
+        if not getattr(sys, "frozen", False):
+            # Dev mode: block until Ctrl-C.
             try:
                 server_thread.join()
             except KeyboardInterrupt:
                 logger.info("Shutdown requested (KeyboardInterrupt)")
                 server.should_exit = True
                 server_thread.join(timeout=10)
+        # Frozen mode: main() returns here; server_thread keeps the process alive.
 
     except OSError as exc:
         if "address already in use" in str(exc).lower() or getattr(exc, "errno", 0) in (98, 10048):
