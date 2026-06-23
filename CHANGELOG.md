@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [1.6.1] — 2026-06-23
+
+### Changed
+- **Network-wide access** — server now binds to `0.0.0.0` (all interfaces) instead of `127.0.0.1`. Every device on the local network can reach the app at `http://<server-ip>:16853`. The LAN IP is logged at startup for easy sharing.
+
+---
+
 ## [1.6.0] — 2026-06-22
 
 ### Added

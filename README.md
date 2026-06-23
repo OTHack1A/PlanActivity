@@ -31,7 +31,9 @@ Daily activity planner for workshop employees. Manage departments, staff, activi
 3. Double-click to launch — no console window, your browser opens automatically
 4. Create your account on first access
 
-> The app runs silently in the background. To stop it: **Task Manager → `pianifica.exe` → End Task**.
+> The app listens on all network interfaces. Other devices on your LAN can connect at
+> `http://<your-ip>:16853` (the exact URL is written to `pianifica.log` at startup).
+> To stop: **Task Manager → `pianifica.exe` → End Task**.
 
 The app creates its data folder automatically:
 

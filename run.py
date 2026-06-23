@@ -2,14 +2,14 @@
 Pianifica — production launcher.
 
 Entry point for PyInstaller (pyinstaller pianifica.spec) and direct run (python run.py).
-The app runs as a background process: uvicorn serves the FastAPI+React app on localhost,
-and the default browser is opened automatically when launched as a frozen exe.
+The app runs as a background process: uvicorn serves the FastAPI+React app on all network
+interfaces so every device on the local network can reach it.
 To stop: Task Manager → pianifica.exe → End Task.
 """
 import asyncio
-import logging
 import multiprocessing
 import os
+import socket
 import sys
 import threading
 import time
@@ -22,8 +22,20 @@ import uvicorn
 from backend.main import app
 from backend.logging_config import setup_logging, get_logger
 
-HOST = "127.0.0.1"
+HOST = "0.0.0.0"   # listen on all interfaces — reachable from the local network
 PORT = 16853
+
+
+def _lan_ip() -> str:
+    """Return the LAN IP of this machine (best-guess via UDP probe, no traffic sent)."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "unknown"
 
 
 def _redirect_null_streams() -> None:
@@ -53,7 +65,12 @@ def main() -> None:
     try:
         setup_logging()
         logger = get_logger()
-        logger.info(f"Pianifica starting on http://{HOST}:{PORT}")
+        lan = _lan_ip()
+        logger.info(
+            f"Pianifica starting — "
+            f"local: http://127.0.0.1:{PORT}  "
+            f"network: http://{lan}:{PORT}"
+        )
 
         config = uvicorn.Config(
             app,
@@ -85,7 +102,7 @@ def main() -> None:
             # Give uvicorn a moment to bind the port, then open the browser once.
             time.sleep(1.5)
             try:
-                webbrowser.open(f"http://{HOST}:{PORT}")
+                webbrowser.open(f"http://127.0.0.1:{PORT}")
             except Exception as exc:
                 logger.warning(f"Could not open browser: {exc}")
             # main() returns here; the non-daemon server_thread keeps the process alive.
