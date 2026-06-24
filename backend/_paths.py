@@ -42,4 +42,6 @@ def _data_dir() -> Path:
 
 RUNTIME_ROOT = _runtime_root()
 DATA_DIR = _data_dir()
-LOG_FILE = RUNTIME_ROOT / "pianifica.log"
+# Log co-located with data: DATA_DIR is guaranteed writable (falls back to
+# LOCALAPPDATA when exe is in a read-only location such as Program Files).
+LOG_FILE = DATA_DIR / "pianifica.log"

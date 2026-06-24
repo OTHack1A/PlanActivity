@@ -45,14 +45,14 @@ The app creates its data folder automatically:
 ```
 C:\PlanActivity\
 ├── pianifica.exe
-├── pianifica.log          ← rotating log (10 MB × 5 files)
 └── data\
     ├── pianifica.db       ← SQLite database
+    ├── pianifica.log      ← rotating log (10 MB × 5 files)
     └── .secret            ← auto-generated JWT key
 ```
 
-> If the folder is read-only (e.g. `Program Files`), data is stored in
-> `%LOCALAPPDATA%\Pianifica\data\` instead.
+> If the folder is read-only (e.g. `Program Files`), the `data\` folder is
+> created in `%LOCALAPPDATA%\Pianifica\data\` instead.
 
 To stop the app: Task Manager → `pianifica.exe` → End Task  
 To update: replace `pianifica.exe` (the `data\` folder is never touched)

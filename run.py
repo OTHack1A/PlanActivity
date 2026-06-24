@@ -46,16 +46,27 @@ def _redirect_null_streams() -> None:
 
 
 def _emergency_log(message: str) -> None:
-    """Write to pianifica.log when the logging system is not yet initialised."""
-    try:
-        if getattr(sys, "frozen", False):
-            log_path = Path(sys.executable).parent / "pianifica.log"
-        else:
-            log_path = Path(__file__).parent / "pianifica.log"
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}][ERROR]: {message}\n")
-    except Exception:
-        pass
+    """Write to pianifica.log before the main logging system is initialised.
+
+    Tries the canonical location first (DATA_DIR / pianifica.log); falls back
+    to LOCALAPPDATA if the exe is in a read-only folder (e.g. Program Files).
+    """
+    if getattr(sys, "frozen", False):
+        primary = Path(sys.executable).parent / "data" / "pianifica.log"
+    else:
+        primary = Path(__file__).parent / "data" / "pianifica.log"
+
+    appdata = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or ""
+    fallback = Path(appdata) / "Pianifica" / "data" / "pianifica.log" if appdata else None
+
+    for log_path in filter(None, [primary, fallback]):
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}][ERROR]: {message}\n")
+            return
+        except Exception:
+            continue
 
 
 def main() -> None:

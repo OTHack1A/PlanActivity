@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [1.6.2] — 2026-06-24
+
+### Fixed
+- **Login 500 Internal Server Error from remote computers** — `RequestValidationError` handler in `backend/main.py` was passing `exc.errors()` (which can contain `bytes` when the request body is not valid JSON) directly to `JSONResponse`. Python's JSON encoder cannot serialize `bytes`, so the handler itself crashed with `TypeError: Object of type bytes is not JSON serializable`, triggering the global 500 error handler. Fix: use the already-sanitised `compact` dict (with `input` stripped) for both the log line and the response body.
+- **Log file in read-only folder** — `LOG_FILE` was computed as `RUNTIME_ROOT / "pianifica.log"`. When the exe lives in a protected directory (e.g. `C:\Program Files\`), `RotatingFileHandler` could not create the file and `setup_logging()` would raise, preventing the server from starting. Fix: `LOG_FILE` is now `DATA_DIR / "pianifica.log"`, which is already guaranteed writable (falls back to `%LOCALAPPDATA%\Pianifica\data\` automatically).
+- **Emergency log fallback** — `_emergency_log()` in `run.py` now also tries `%LOCALAPPDATA%\Pianifica\data\pianifica.log` as a fallback when writing next to the exe fails.
+
+### Changed
+- Log file location moved from `<exe-folder>\pianifica.log` to `<exe-folder>\data\pianifica.log` (co-located with the database and `.secret` file).
+
+---
+
 ## [1.6.1] — 2026-06-23
 
 ### Changed

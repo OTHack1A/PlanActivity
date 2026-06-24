@@ -67,13 +67,13 @@ app.include_router(settings_router.router)
 
 @app.exception_handler(RequestValidationError)
 async def validation_handler(request: Request, exc: RequestValidationError):
-    # Strip raw 'input' values from the log summary to avoid bloating the log
-    # with large payloads; the full detail is still returned to the caller.
+    # Strip 'input' to keep logs compact AND to avoid TypeError when the body
+    # is bytes (e.g. wrong Content-Type) — bytes are not JSON-serializable.
     compact = [{k: v for k, v in e.items() if k != "input"} for e in exc.errors()]
     get_logger().warning(
         f"Validazione fallita: {request.method} {request.url.path} — {compact}"
     )
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    return JSONResponse(status_code=422, content={"detail": compact})
 
 
 @app.exception_handler(Exception)
