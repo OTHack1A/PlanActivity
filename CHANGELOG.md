@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here.
 
+## [1.7.0] — 2026-06-24
+
+### Added
+- **"Licenziato" state on employees** — new button in the activity modal (next to "Permesso"). When active, no activities can be entered for that day. Termination automatically propagates forward: all dates ≥ `terminated_from` show as "Licenziato" across Day view, Week view, and the modal — without manual per-day marking. Past activities are preserved. Can be toggled off manually at any time. Requires a new `terminated_from` column on the `employees` table (auto-migrated at startup).
+- **Day navigation inside the activity modal** — when opening the modal for today, a ◀ arrow navigates to yesterday (read-only) to quickly check if previous work was completed. A ▶ arrow returns to today (editable). Navigation is limited to today ↔ yesterday only; read-only mode prevents accidental edits on navigated dates.
+- **Color-coded total hours in modal footer** — "Totale ore previste" value turns green when hours match the target (including overtime), red when over-target, yellow when under-target and non-zero.
+
+### Changed
+- **Login card shake animation** — replaced React-state-based approach with imperative DOM ref so re-renders during animation (e.g. typing in a field) no longer restart the shake effect. Shake now fires only on login error, never on focus.
+- **Login/Register pages** — removed the subtitle "Configura il sistema per la tua officina" / "Inserisci le credenziali per continuare" (redundant with the form itself).
+- **`satHalfDay` prop passed to ActivityModal** — total hours are now colour-coded against the correct daily target (4 h on Saturday when the half-day setting is enabled, 8 + overtime otherwise).
+
+### Fixed
+- **`getAbsence` → `getEffectiveAbsence`** — DayView and WeekView now compute the effective absence state taking `terminated_from` into account, so licenziato employees show the correct badge without any stored absence record.
+
+---
+
 ## [1.6.2] — 2026-06-24
 
 ### Fixed

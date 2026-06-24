@@ -160,7 +160,6 @@ function Register({ onRegister }) {
         <LogoArea />
         <div className="login-brand"><span className="dot"></span><span>PIANIFICA</span></div>
         <h1>{t('reg.title')}</h1>
-        <p className="login-lead">{t('reg.lead')}</p>
         <label className="fld">
           <span>{t('reg.company')}</span>
           <input
@@ -222,9 +221,18 @@ function Login({ onLogin }) {
   const { t } = useI18n()
   const [user, setUser] = useState('')
   const [pass, setPass] = useState('')
-  const [shake, setShake] = useState(false)
+  const cardRef = useRef(null)
   const [lockedFor, setLockedFor] = useState(0)
   const [error, setError] = useState('')
+
+  const triggerShake = () => {
+    const card = cardRef.current
+    if (!card) return
+    card.classList.remove('shake')
+    void card.offsetWidth
+    card.classList.add('shake')
+    setTimeout(() => card.classList.remove('shake'), 600)
+  }
 
   useEffect(() => {
     if (lockedFor <= 0) return
@@ -258,8 +266,7 @@ function Login({ onLogin }) {
           ? t('login.errServerDown')
           : err.message || t('login.submit')
         setError(msg)
-        setShake(true)
-        setTimeout(() => setShake(false), 600)
+        triggerShake()
       }
     }
   }
@@ -267,11 +274,10 @@ function Login({ onLogin }) {
   return (
     <div className="login-screen">
       <div className="login-grid"></div>
-      <form className={'login-card' + (shake ? ' shake' : '')} onSubmit={submit}>
+      <form ref={cardRef} className="login-card" onSubmit={submit}>
         <LogoArea />
         <div className="login-brand"><span className="dot"></span><span>PIANIFICA</span></div>
         <h1>{t('login.title')}</h1>
-        <p className="login-lead">{t('login.lead')}</p>
         <label className="fld">
           <span>{t('login.user')}</span>
           <input
@@ -758,9 +764,14 @@ export default function App() {
     setView(newView)
   }
 
-  const handleModalSave = async (empId, dateStr, activities, absenceType) => {
+  const handleModalSave = async (empId, dateStr, activities, absenceType, terminatedFrom) => {
     await api.putEntries(empId, dateStr, activities)
     await api.putAbsence(empId, dateStr, absenceType)
+    if (terminatedFrom !== undefined) {
+      await api.patchEmployee(empId, { terminated_from: terminatedFrom })
+      const emps = await api.getEmployees()
+      setData((prev) => ({ ...prev, employees: emps }))
+    }
     await loadEntries(view, date)
     setModal(null)
   }
@@ -820,6 +831,7 @@ export default function App() {
           ctx={modal}
           onSave={handleModalSave}
           onClose={() => setModal(null)}
+          satHalfDay={settings.saturday_half_day}
         />
       )}
     </div>

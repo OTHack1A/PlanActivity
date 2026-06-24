@@ -108,6 +108,10 @@ const LANGS = {
     'modal.done': 'Fatto',
     'modal.saving': 'Salvo…',
     'modal.deleteRow': 'Elimina riga',
+    'modal.dismissed': 'Licenziato',
+    'modal.dismissedFrom': 'Dal {date}',
+    'modal.readOnly': 'Solo lettura',
+    'modal.prevDay': 'Giorno precedente',
 
     'absence.ferie.label': 'Ferie',
     'absence.ferie.short': 'F',
@@ -115,6 +119,8 @@ const LANGS = {
     'absence.malattia.short': 'M',
     'absence.permesso.label': 'Permesso',
     'absence.permesso.short': 'P',
+    'absence.licenziato.label': 'Licenziato',
+    'absence.licenziato.short': 'X',
 
     // Log eventi UI (tradotti)
     'log.viewChanged': 'Vista: {from} → {to}',
@@ -274,6 +280,10 @@ const LANGS = {
     'modal.done': 'Done',
     'modal.saving': 'Saving…',
     'modal.deleteRow': 'Delete row',
+    'modal.dismissed': 'Dismissed',
+    'modal.dismissedFrom': 'From {date}',
+    'modal.readOnly': 'Read-only',
+    'modal.prevDay': 'Previous day',
 
     'absence.ferie.label': 'Vacation',
     'absence.ferie.short': 'V',
@@ -281,6 +291,8 @@ const LANGS = {
     'absence.malattia.short': 'S',
     'absence.permesso.label': 'Leave',
     'absence.permesso.short': 'L',
+    'absence.licenziato.label': 'Dismissed',
+    'absence.licenziato.short': 'X',
 
     'log.viewChanged': 'View: {from} → {to}',
     'log.modalOpened': 'Modal: {emp}, {date}',
@@ -437,6 +449,10 @@ const LANGS = {
     'modal.done': 'Listo',
     'modal.saving': 'Guardando…',
     'modal.deleteRow': 'Eliminar fila',
+    'modal.dismissed': 'Despedido',
+    'modal.dismissedFrom': 'Desde {date}',
+    'modal.readOnly': 'Solo lectura',
+    'modal.prevDay': 'Día anterior',
 
     'absence.ferie.label': 'Vacaciones',
     'absence.ferie.short': 'V',
@@ -444,6 +460,8 @@ const LANGS = {
     'absence.malattia.short': 'E',
     'absence.permesso.label': 'Permiso',
     'absence.permesso.short': 'P',
+    'absence.licenziato.label': 'Despedido',
+    'absence.licenziato.short': 'X',
 
     'log.viewChanged': 'Vista: {from} → {to}',
     'log.modalOpened': 'Modal: {emp}, {date}',
@@ -600,6 +618,10 @@ const LANGS = {
     'modal.done': 'Готово',
     'modal.saving': 'Збереження…',
     'modal.deleteRow': 'Видалити рядок',
+    'modal.dismissed': 'Звільнений',
+    'modal.dismissedFrom': 'З {date}',
+    'modal.readOnly': 'Лише читання',
+    'modal.prevDay': 'Попередній день',
 
     'absence.ferie.label': 'Відпустка',
     'absence.ferie.short': 'В',
@@ -607,6 +629,8 @@ const LANGS = {
     'absence.malattia.short': 'Л',
     'absence.permesso.label': 'Відгул',
     'absence.permesso.short': 'Д',
+    'absence.licenziato.label': 'Звільнений',
+    'absence.licenziato.short': 'З',
 
     'log.viewChanged': 'Перегляд: {from} → {to}',
     'log.modalOpened': 'Модаль: {emp}, {date}',

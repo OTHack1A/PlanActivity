@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, date as date_type
+from typing import Optional
 from sqlalchemy import String, ForeignKey, Date, Float, Integer, DateTime, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
@@ -41,6 +42,7 @@ class Employee(Base):
         String, ForeignKey("departments.id", ondelete="CASCADE"), nullable=False
     )
     overtime_hours: Mapped[float] = mapped_column(Float, default=0.0)
+    terminated_from: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     department: Mapped["Department"] = relationship("Department", back_populates="employees")

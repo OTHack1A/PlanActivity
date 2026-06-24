@@ -65,6 +65,7 @@ class EmployeePatch(BaseModel):
     role: Optional[str] = Field(default=None, max_length=80)
     departmentId: Optional[str] = Field(default=None, max_length=20)
     overtime: Optional[str] = Field(default=None, max_length=10)
+    terminated_from: Optional[str] = Field(default=None, max_length=10)
 
 
 class EmployeeOut(BaseModel):
@@ -74,6 +75,7 @@ class EmployeeOut(BaseModel):
     departmentId: str
     overtime: str
     hasAvatar: bool = False
+    terminated_from: Optional[str] = None
 
 
 # --- Entries ---

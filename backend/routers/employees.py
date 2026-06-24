@@ -67,6 +67,7 @@ def _to_out(emp: models.Employee) -> schemas.EmployeeOut:
         departmentId=emp.department_id,
         overtime=_overtime_str(emp.overtime_hours),
         hasAvatar=_has_avatar(emp.id),
+        terminated_from=emp.terminated_from,
     )
 
 
@@ -129,6 +130,14 @@ def patch_employee(
         if new_ot != emp.overtime_hours:
             changes.append(f"straordinario: {_overtime_str(emp.overtime_hours) or '0'} → {_overtime_str(new_ot) or '0'} h")
             emp.overtime_hours = new_ot
+    if "terminated_from" in body.model_fields_set:
+        new_tf = body.terminated_from
+        if new_tf != emp.terminated_from:
+            if new_tf:
+                changes.append(f"licenziato dal: {new_tf}")
+            else:
+                changes.append("reintegrato")
+            emp.terminated_from = new_tf
     db.commit()
     db.refresh(emp)
     if changes:

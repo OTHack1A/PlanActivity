@@ -6,7 +6,7 @@ import {
   startOfWeek, weekDays, monthGrid, sameMonth,
   uid, DEPT_COLORS, isSunday, isSaturday,
   getEntries, empDayTotal, empHasDay, dayTotalAll, employeesByDept, fmtHours,
-  ABSENCE_TYPES, getAbsence,
+  ABSENCE_TYPES, getAbsence, getEffectiveAbsence, LICENZIATO_COLOR,
 } from './store.js'
 import * as api from './api.js'
 import { useI18n, LANG_OPTIONS } from './i18n.jsx'
@@ -440,11 +440,13 @@ export function DayView({ data, date, onOpen, onPrevDay, satHalfDay }) {
                 const acts = getEntries(data, date, emp.id)
                 const h = empDayTotal(data, date, emp.id)
                 const target = empDayTarget(emp, date, satHalfDay)
-                const abs = getAbsence(data, date, emp.id)
+                const abs = getEffectiveAbsence(data, date, emp.id)
+                const isFired = abs === 'licenziato'
+                const regularAbs = isFired ? null : abs
                 return (
                   <button
                     key={emp.id}
-                    className={'emp-card' + (abs ? ' is-absent' : '')}
+                    className={'emp-card' + (regularAbs ? ' is-absent' : '') + (isFired ? ' is-fired' : '')}
                     style={{ '--dept': dep.color }}
                     onClick={() => onOpen(emp, dep)}
                   >
@@ -459,11 +461,19 @@ export function DayView({ data, date, onOpen, onPrevDay, satHalfDay }) {
                       </span>
                     </div>
                     <div className="foot">
-                      {abs ? (
+                      {isFired ? (
                         <>
-                          <span className="abs-tag" style={{ '--chip': ABSENCE_TYPES[abs].color }}>
-                            <span className="sdot" style={{ background: ABSENCE_TYPES[abs].color }}></span>
-                            {t(`absence.${abs}.label`)}
+                          <span className="abs-tag" style={{ '--chip': LICENZIATO_COLOR }}>
+                            <span className="sdot" style={{ background: LICENZIATO_COLOR }}></span>
+                            {t('absence.licenziato.label')}
+                          </span>
+                          <span className="hours zero">—</span>
+                        </>
+                      ) : regularAbs ? (
+                        <>
+                          <span className="abs-tag" style={{ '--chip': ABSENCE_TYPES[regularAbs].color }}>
+                            <span className="sdot" style={{ background: ABSENCE_TYPES[regularAbs].color }}></span>
+                            {t(`absence.${regularAbs}.label`)}
                           </span>
                           <span className="hours zero">—</span>
                         </>
@@ -552,19 +562,29 @@ export function WeekView({ data, date, onOpenDate, satHalfDay }) {
                     {days.map((d) => {
                       const h = empDayTotal(data, d, emp.id)
                       const has = h > 0
-                      const abs = getAbsence(data, d, emp.id)
+                      const abs = getEffectiveAbsence(data, d, emp.id)
+                      const isFired = abs === 'licenziato'
+                      const regularAbs = isFired ? null : abs
                       const target = empDayTarget(emp, d, satHalfDay)
                       const full = h === target
                       return (
-                        <td key={d} className={'hour-cell ' + (abs ? 'absent' : has ? 'has' : 'empty') + (d === today ? ' today-col' : '') + (isSunday(d) ? ' sun-col' : '')}>
+                        <td key={d} className={'hour-cell ' + (isFired || regularAbs ? 'absent' : has ? 'has' : 'empty') + (d === today ? ' today-col' : '') + (isSunday(d) ? ' sun-col' : '')}>
                           <button onClick={() => onOpenDate(emp, dep, d)}>
-                            {abs ? (
+                            {isFired ? (
                               <span
                                 className="cell-abs"
-                                style={{ '--chip': ABSENCE_TYPES[abs].color }}
-                                title={t(`absence.${abs}.label`)}
+                                style={{ '--chip': LICENZIATO_COLOR }}
+                                title={t('absence.licenziato.label')}
                               >
-                                {t(`absence.${abs}.short`)}
+                                {t('absence.licenziato.short')}
+                              </span>
+                            ) : regularAbs ? (
+                              <span
+                                className="cell-abs"
+                                style={{ '--chip': ABSENCE_TYPES[regularAbs].color }}
+                                title={t(`absence.${regularAbs}.label`)}
+                              >
+                                {t(`absence.${regularAbs}.short`)}
                               </span>
                             ) : has ? (
                               <span
@@ -714,19 +734,47 @@ const withTrailing = (list) => {
   return [...filled, emptyRow()]
 }
 
-export function ActivityModal({ data, ctx, onSave, onClose }) {
+export function ActivityModal({ data, ctx, onSave, onClose, satHalfDay }) {
   const { t, locale } = useI18n()
   const { emp, dep, date } = ctx
+
+  // Date navigation — only available when modal opened for today
+  const [modalDate, setModalDate] = useState(date)
+  const [navLoading, setNavLoading] = useState(false)
+  const today = todayISO()
+  const yesterday = addDays(today, -1)
+  const isReadOnly = modalDate !== date        // navigated dates are read-only
+  const canNavPrev = date === today && modalDate === today      // today → yesterday
+  const canNavNext = date === today && modalDate === yesterday  // yesterday → today
+
   const [localAbsence, setLocalAbsence] = useState(() => getAbsence(data, date, emp.id))
   const [rows, setRows] = useState(() => withTrailing(getEntries(data, date, emp.id)))
+  const [localTerminated, setLocalTerminated] = useState(emp.terminated_from || null)
   const [saving, setSaving] = useState(false)
 
+  // Is the employee terminated on the currently viewed date?
+  const isLicenziato = !!(localTerminated && modalDate >= localTerminated)
+
+  // Target hours for the current modal date
+  const target = empDayTarget(emp, modalDate, satHalfDay)
+
+  const navigateTo = async (newDate) => {
+    setNavLoading(true)
+    try {
+      const { entries, absences } = await api.getEntries(newDate, newDate)
+      setLocalAbsence((absences[newDate] && absences[newDate][emp.id]) || null)
+      setRows(withTrailing((entries[newDate] && entries[newDate][emp.id]) || []))
+      setModalDate(newDate)
+    } catch {
+      // silently keep current date
+    } finally {
+      setNavLoading(false)
+    }
+  }
+
   const apply = (list) => setRows(withTrailing(list))
-
-  const editRow = (id, field, val) =>
-    apply(rows.map((r) => (r.id === id ? { ...r, [field]: val } : r)))
+  const editRow = (id, field, val) => apply(rows.map((r) => (r.id === id ? { ...r, [field]: val } : r)))
   const delRow = (id) => apply(rows.filter((r) => r.id !== id))
-
   const onHours = (id, raw) => {
     let v = raw.replace(',', '.').replace(/[^\d.]/g, '')
     const parts = v.split('.')
@@ -738,16 +786,15 @@ export function ActivityModal({ data, ctx, onSave, onClose }) {
   const handleDone = async () => {
     setSaving(true)
     const activities = rows.filter((r) => !isBlank(r)).map((r) => ({
-      id: r.id,
-      activity: r.activity,
-      hours: Number(r.hours) || 0,
-      notes: r.notes || '',
+      id: r.id, activity: r.activity, hours: Number(r.hours) || 0, notes: r.notes || '',
     }))
-    await onSave(emp.id, date, activities, localAbsence)
+    const terminatedChanged = localTerminated !== (emp.terminated_from || null)
+    await onSave(emp.id, date, activities, localAbsence, terminatedChanged ? localTerminated : undefined)
   }
 
   const total = rows.reduce((s, r) => s + (Number(r.hours) || 0), 0)
-  const visibleRows = localAbsence ? rows.filter((r) => !isBlank(r)) : rows
+  const visibleRows = (localAbsence || isLicenziato) ? rows.filter((r) => !isBlank(r)) : rows
+  const totalClass = total === 0 ? '' : total === target ? 'total-ok' : total > target ? 'total-over' : 'total-under'
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -757,34 +804,85 @@ export function ActivityModal({ data, ctx, onSave, onClose }) {
             {initials(emp.name)}
             <AvatarImg emp={emp} />
           </span>
-          <div>
+          <div style={{ flex: 1 }}>
             <div className="name">{emp.name}</div>
-            <div className="sub">{emp.role} · {dep.name} · {fmtLong(date, locale)}</div>
+            <div className="sub">{emp.role} · {dep.name} · {fmtLong(modalDate, locale)}</div>
           </div>
+          {(canNavPrev || canNavNext || isReadOnly) && (
+            <div className="modal-nav">
+              <button
+                className="modal-nav-btn"
+                onClick={() => navigateTo(yesterday)}
+                disabled={!canNavPrev || navLoading}
+                style={{ visibility: canNavPrev ? 'visible' : 'hidden' }}
+                title={t('modal.prevDay')}
+              >◀</button>
+              {isReadOnly && <span className="modal-readonly-badge">{t('modal.readOnly')}</span>}
+              <button
+                className="modal-nav-btn"
+                onClick={() => navigateTo(today)}
+                disabled={!canNavNext || navLoading}
+                style={{ visibility: canNavNext ? 'visible' : 'hidden' }}
+                title={t('nav.today')}
+              >▶</button>
+            </div>
+          )}
           <button className="x" onClick={onClose}>✕</button>
         </div>
 
         <div className="status-bar">
           <button
-            className={'status-chip' + (!localAbsence ? ' active' : '')}
-            onClick={() => setLocalAbsence(null)}
+            className={'status-chip' + (!localAbsence && !isLicenziato ? ' active' : '')}
+            onClick={() => !isReadOnly && setLocalAbsence(null)}
+            disabled={isReadOnly}
           >
             <span className="sdot" style={{ background: 'var(--accent)' }}></span>{t('modal.present')}
           </button>
           {Object.entries(ABSENCE_TYPES).map(([key, at]) => (
             <button
               key={key}
-              className={'status-chip' + (localAbsence === key ? ' active' : '')}
+              className={'status-chip' + (localAbsence === key && !isLicenziato ? ' active' : '')}
               style={{ '--chip': at.color }}
-              onClick={() => setLocalAbsence(localAbsence === key ? null : key)}
+              onClick={() => !isReadOnly && setLocalAbsence(localAbsence === key ? null : key)}
+              disabled={isReadOnly}
             >
               <span className="sdot" style={{ background: at.color }}></span>{t(`absence.${key}.label`)}
             </button>
           ))}
+          {!isReadOnly && (
+            <button
+              className={'status-chip' + (isLicenziato ? ' active' : '')}
+              style={{ '--chip': LICENZIATO_COLOR }}
+              onClick={() => {
+                if (isLicenziato) {
+                  setLocalTerminated(null)
+                } else {
+                  setLocalTerminated(date)
+                  setLocalAbsence(null)
+                }
+              }}
+            >
+              <span className="sdot" style={{ background: LICENZIATO_COLOR }}></span>{t('modal.dismissed')}
+            </button>
+          )}
+          {isReadOnly && isLicenziato && (
+            <span className="status-chip active" style={{ '--chip': LICENZIATO_COLOR }}>
+              <span className="sdot" style={{ background: LICENZIATO_COLOR }}></span>{t('modal.dismissed')}
+            </span>
+          )}
         </div>
 
         <div className="modal-body">
-          {localAbsence ? (
+          {isLicenziato ? (
+            <div className="absence-note" style={{ '--chip': LICENZIATO_COLOR }}>
+              <span className="big">{t('modal.dismissed')}</span>
+              {localTerminated && (
+                <span style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  {t('modal.dismissedFrom', { date: fmtLong(localTerminated, locale) })}
+                </span>
+              )}
+            </div>
+          ) : localAbsence ? (
             <div className="absence-note" style={{ '--chip': ABSENCE_TYPES[localAbsence].color }}>
               <span className="big">{t(`absence.${localAbsence}.label`)}</span>
             </div>
@@ -805,21 +903,24 @@ export function ActivityModal({ data, ctx, onSave, onClose }) {
                         rows={1}
                         placeholder={trailing ? t('modal.newActivity') : t('modal.activityDesc')}
                         value={r.activity}
-                        onChange={(e) => editRow(r.id, 'activity', e.target.value)}
+                        onChange={(e) => !isReadOnly && editRow(r.id, 'activity', e.target.value)}
+                        readOnly={isReadOnly}
                       />
                       <input
                         inputMode="decimal"
                         placeholder="0.0"
                         value={r.hours}
-                        onChange={(e) => onHours(r.id, e.target.value)}
+                        onChange={(e) => !isReadOnly && onHours(r.id, e.target.value)}
+                        readOnly={isReadOnly}
                       />
                       <textarea
                         rows={1}
                         placeholder={t('modal.notesOpt')}
                         value={r.notes}
-                        onChange={(e) => editRow(r.id, 'notes', e.target.value)}
+                        onChange={(e) => !isReadOnly && editRow(r.id, 'notes', e.target.value)}
+                        readOnly={isReadOnly}
                       />
-                      {trailing ? (
+                      {trailing || isReadOnly ? (
                         <span className="del-spacer"></span>
                       ) : (
                         <button className="del" onClick={() => delRow(r.id)} title={t('modal.deleteRow')}>✕</button>
@@ -833,14 +934,16 @@ export function ActivityModal({ data, ctx, onSave, onClose }) {
         </div>
 
         <div className="modal-foot">
-          <div className="total">
+          <div className={'total' + (totalClass ? ' ' + totalClass : '')}>
             {t('modal.totalHours')} <b>{fmtHours(total)}</b>
           </div>
           <div className="grow"></div>
           <button className="btn-icon" onClick={onClose} disabled={saving}>{t('modal.cancel')}</button>
-          <button className="btn-icon primary" onClick={handleDone} disabled={saving}>
-            {saving ? t('modal.saving') : t('modal.done')}
-          </button>
+          {!isReadOnly && (
+            <button className="btn-icon primary" onClick={handleDone} disabled={saving}>
+              {saving ? t('modal.saving') : t('modal.done')}
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -116,6 +116,17 @@ export const fmtHours = (h) => {
 export const getAbsence = (data, date, empId) =>
   (data.absences && data.absences[date] && data.absences[date][empId]) || null
 
+export const LICENZIATO_COLOR = 'oklch(0.50 0.22 25)'
+
+export const isTerminated = (emp, date) =>
+  !!(emp && emp.terminated_from && date >= emp.terminated_from)
+
+export const getEffectiveAbsence = (data, date, empId) => {
+  const emp = data.employees.find((e) => e.id === empId)
+  if (isTerminated(emp, date)) return 'licenziato'
+  return getAbsence(data, date, empId)
+}
+
 // Calcola il range di date necessario per una vista
 export function viewRange(view, date) {
   if (view === 'day') return { from: date, to: date }

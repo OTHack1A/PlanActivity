@@ -33,6 +33,12 @@ def _migrate_schema(eng) -> None:
             ))
             conn.commit()
             logger.info("Schema migrato: creata tabella 'app_settings'")
+        if "employees" in existing_tables:
+            cols = {c["name"] for c in insp.get_columns("employees")}
+            if "terminated_from" not in cols:
+                conn.execute(text("ALTER TABLE employees ADD COLUMN terminated_from VARCHAR DEFAULT NULL"))
+                conn.commit()
+                logger.info("Schema migrato: aggiunta colonna 'terminated_from' alla tabella employees")
 
 
 @asynccontextmanager
