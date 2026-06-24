@@ -48,7 +48,9 @@ C:\PlanActivity\
 └── data\
     ├── pianifica.db       ← SQLite database
     ├── pianifica.log      ← rotating log (10 MB × 5 files)
-    └── .secret            ← auto-generated JWT key
+    ├── .secret            ← auto-generated JWT key
+    └── backups\           ← automatic DB snapshots (last 10 kept)
+        └── pianifica-YYYYMMDD-HHMMSS.db
 ```
 
 > If the folder is read-only (e.g. `Program Files`), the `data\` folder is
@@ -194,13 +196,15 @@ See [DEPLOY.md](DEPLOY.md) for systemd service, nginx + TLS, and backup instruct
 | Measure | Detail |
 |---|---|
 | Password hashing | **Argon2id** — m=64 MB, t=3, p=4 (OWASP 2024 parameters) |
-| JWT secret | Auto-generated on first run, stored in `data/.secret` (gitignored) |
-| Rate limiting | 3 failed login attempts → 180-second lockout per username |
+| Password policy | Minimum **8 characters** at registration, enforced client- and server-side |
+| JWT secret | Auto-generated on first run, stored in `data/.secret` (gitignored); 8-hour token expiry |
+| Rate limiting | 3 failed login attempts → 180-second lockout per username (constant-time master check) |
 | SQL injection | Impossible — all queries use parameterised SQLAlchemy ORM |
 | XSS | React automatically escapes all dynamic content |
 | Upload validation | Magic-byte file-type check + extension whitelist + 2 MB size limit |
 | Log injection | CR/LF stripped from all user-supplied strings before logging |
-| Input validation | Pydantic `max_length` enforced on every API field |
+| Input validation | Pydantic `max_length` enforced on every API field; non-JSON bodies return 422, never 500 |
+| Data safety | Automatic DB backup before every startup migration (last 10 kept) |
 | Swagger docs | Disabled in production (`docs_url=None`) |
 
 ---
@@ -211,6 +215,22 @@ See [DEPLOY.md](DEPLOY.md) for systemd service, nginx + TLS, and backup instruct
 
 - **First run**: tables are created automatically via `create_all`.
 - **Schema changes**: safe `ADD COLUMN` operations are auto-applied at startup.
+
+### Automatic backups
+
+At every startup — **before** any migration runs — the app writes a consistent
+copy of the database to `data/backups/pianifica-YYYYMMDD-HHMMSS.db` using the
+SQLite online-backup API. The **10 most recent** snapshots are kept; older ones
+are pruned automatically. The routine is best-effort: a failed backup is written
+to the log and never prevents the server from starting.
+
+**To restore** a previous state, stop the app and copy a backup over the live DB:
+
+```powershell
+Copy-Item data\backups\pianifica-20260624-215223.db data\pianifica.db -Force
+```
+
+This gives a guaranteed rollback path for future schema changes.
 
 ---
 

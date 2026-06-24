@@ -1,18 +1,24 @@
 from typing import Optional, Literal
 from pydantic import BaseModel, Field
 
+# Password policy — single source of truth (mirrored client-side in App.jsx MIN_PASSWORD).
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 128
+
 
 # --- Auth ---
 
 class RegisterIn(BaseModel):
     user: str = Field(min_length=1, max_length=50)
-    password: str = Field(min_length=6, max_length=128)
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
     company: str = Field(min_length=1, max_length=100)
 
 
 class LoginIn(BaseModel):
     user: str = Field(max_length=50)
-    password: str = Field(max_length=128)
+    # No min_length on login: legacy/master accounts may have shorter passwords.
+    # The server compares against the stored hash; length is enforced only at registration.
+    password: str = Field(max_length=MAX_PASSWORD_LENGTH)
 
 
 class TokenOut(BaseModel):

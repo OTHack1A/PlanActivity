@@ -470,6 +470,10 @@ td.col-emp { background: var(--surface-solid); z-index: 1; }
 .fld input::placeholder { color: var(--faint); }
 .fld input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .fld input.bad { border-color: oklch(0.52 0.18 25 / 0.7); }
+.fld .fld-hint {
+  font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;
+  color: var(--faint); margin-top: -2px;
+}
 .fld-note { font-size: 12px; color: oklch(0.52 0.18 38); margin: -8px 0 14px; }
 .lock-note { color: oklch(0.52 0.20 42); font-weight: 500; }
 .account-panel { max-width: 420px; }

@@ -31,6 +31,11 @@ const LANGS = {
     'login.locked': 'Bloccato ({s})',
     'login.retryAfter': 'Troppi tentativi. Riprova tra {s}.',
     'login.errServerDown': 'Impossibile connettersi al server. Verificare che il backend sia avviato.',
+    'login.invalidCreds': 'Accesso non riuscito: utente o password non corretti.',
+
+    'auth.pwTooShort': 'La password deve contenere almeno {n} caratteri.',
+    'auth.pwHint': 'Minimo {n} caratteri.',
+    'auth.fillCredentials': 'Inserisci utente e password.',
 
     'app.loading': 'Caricamento…',
 
@@ -203,6 +208,11 @@ const LANGS = {
     'login.locked': 'Locked ({s})',
     'login.retryAfter': 'Too many attempts. Retry in {s}.',
     'login.errServerDown': 'Unable to connect to the server. Make sure the backend is running.',
+    'login.invalidCreds': 'Login failed: incorrect username or password.',
+
+    'auth.pwTooShort': 'The password must be at least {n} characters long.',
+    'auth.pwHint': 'Minimum {n} characters.',
+    'auth.fillCredentials': 'Enter username and password.',
 
     'app.loading': 'Loading…',
 
@@ -372,6 +382,11 @@ const LANGS = {
     'login.locked': 'Bloqueado ({s})',
     'login.retryAfter': 'Demasiados intentos. Reintenta en {s}.',
     'login.errServerDown': 'No se puede conectar al servidor. Verifique que el backend esté activo.',
+    'login.invalidCreds': 'Acceso fallido: usuario o contraseña incorrectos.',
+
+    'auth.pwTooShort': 'La contraseña debe tener al menos {n} caracteres.',
+    'auth.pwHint': 'Mínimo {n} caracteres.',
+    'auth.fillCredentials': 'Introduce usuario y contraseña.',
 
     'app.loading': 'Cargando…',
 
@@ -541,6 +556,11 @@ const LANGS = {
     'login.locked': 'Заблоковано ({s})',
     'login.retryAfter': 'Забагато спроб. Повторіть через {s}.',
     'login.errServerDown': 'Неможливо підключитися до сервера. Перевірте, чи запущений бекенд.',
+    'login.invalidCreds': 'Вхід не вдався: невірний користувач або пароль.',
+
+    'auth.pwTooShort': 'Пароль повинен містити щонайменше {n} символів.',
+    'auth.pwHint': 'Мінімум {n} символів.',
+    'auth.fillCredentials': 'Введіть користувача та пароль.',
 
     'app.loading': 'Завантаження…',
 

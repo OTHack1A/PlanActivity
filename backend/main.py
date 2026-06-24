@@ -7,7 +7,8 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from .database import engine, Base
+from .database import engine, Base, DB_PATH
+from ._backup import backup_database
 from .routers import auth, account, departments, employees, entries
 from .routers import log as log_router
 from .routers import logo as logo_router
@@ -44,9 +45,21 @@ def _migrate_schema(eng) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
-    Base.metadata.create_all(bind=engine)
-    _migrate_schema(engine)
-    get_logger().info("Applicazione Pianifica avviata")
+    logger = get_logger()
+    # 1. Back up the existing DB before touching the schema (rollback safety net).
+    if DB_PATH is not None:
+        backup_database(DB_PATH)
+    # 2. Ensure tables exist, then apply additive migrations. Wrapped so a single
+    #    failure is logged but never prevents the server from starting.
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as exc:
+        logger.error(f"create_all fallito: {exc}")
+    try:
+        _migrate_schema(engine)
+    except Exception as exc:
+        logger.error(f"Migrazione schema fallita (l'applicazione continua): {exc}")
+    logger.info("Applicazione Pianifica avviata")
     yield
     get_logger().info("Applicazione Pianifica arrestata")
 

@@ -20,9 +20,18 @@ async function req(path, opts = {}) {
   const json = await res.json().catch(() => ({ detail: res.statusText }))
   if (!res.ok) {
     const detail = json?.detail
-    const msg = typeof detail === 'string' ? detail : detail?.message || 'Errore server'
+    // detail can be: a string, an object {message,...}, or a list of
+    // Pydantic validation errors [{type, loc, msg, ...}]. Surface a useful
+    // message in every case so the UI never shows a raw object.
+    let msg
+    if (typeof detail === 'string') msg = detail
+    else if (detail && typeof detail.message === 'string') msg = detail.message
+    else if (Array.isArray(detail) && detail.length) msg = detail[0]?.msg || 'Errore di validazione'
+    else msg = 'Errore server'
     const err = new Error(msg)
     err.status = res.status
+    // Carry validation metadata so callers can map errors to localized text.
+    if (Array.isArray(detail)) err.validation = detail
     if (res.status === 429) err.retryAfter = detail?.retry_after || 180
     throw err
   }

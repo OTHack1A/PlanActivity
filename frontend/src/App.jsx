@@ -7,11 +7,15 @@ import * as api from './api.js'
 import { Topbar, DayView, WeekView, MonthView, YearView, ActivityModal } from './components.jsx'
 import { useI18n } from './i18n.jsx'
 
+// Minimum password length — must mirror backend schemas.MIN_PASSWORD_LENGTH.
+const MIN_PASSWORD = 8
+
 // ---------------------------------------------------------------------------
 // Campo password "stile Linux": nessun carattere visibile mentre si digita
 // ---------------------------------------------------------------------------
-function PwInput({ value, onChange, onBlur, className, autoFocus }) {
+function PwInput({ value, onChange, onBlur, className, autoFocus, disabled }) {
   const onKey = (e) => {
+    if (disabled) return
     if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'Escape') return
     if (e.metaKey || e.ctrlKey || e.altKey) return
     if (e.key === 'Backspace') { e.preventDefault(); onChange(value.slice(0, -1)) }
@@ -19,6 +23,7 @@ function PwInput({ value, onChange, onBlur, className, autoFocus }) {
   }
   const onPaste = (e) => {
     e.preventDefault()
+    if (disabled) return
     const txt = (e.clipboardData || window.clipboardData).getData('text') || ''
     if (txt) onChange(value + txt)
   }
@@ -32,6 +37,7 @@ function PwInput({ value, onChange, onBlur, className, autoFocus }) {
       onBlur={onBlur}
       className={className}
       autoFocus={autoFocus}
+      disabled={disabled}
       autoComplete="off"
       autoCapitalize="off"
       autoCorrect="off"
@@ -127,8 +133,10 @@ function Register({ onRegister }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const pwTooShort = pass.length > 0 && pass.length < MIN_PASSWORD
   const mismatch = pass2Dirty && pass2.length > 0 && pass !== pass2
-  const valid = company.trim().length > 0 && user.trim().length > 0 && pass.length > 0 && pass === pass2 && !loading
+  const valid = company.trim().length > 0 && user.trim().length > 0
+    && pass.length >= MIN_PASSWORD && pass === pass2 && !loading
 
   const onPassChange = (v) => { setPass(v); setPass2Dirty(false); setPass2('') }
 
@@ -187,8 +195,11 @@ function Register({ onRegister }) {
             value={pass}
             onChange={onPassChange}
             onBlur={() => pass.length > 0 && api.logPublicEvent(t('log.reg.pass'))}
+            className={pwTooShort ? 'bad' : ''}
           />
+          <span className="fld-hint">{t('auth.pwHint', { n: MIN_PASSWORD })}</span>
         </label>
+        {pwTooShort && <div className="fld-note">{t('auth.pwTooShort', { n: MIN_PASSWORD })}</div>}
         <label className="fld">
           <span>{t('reg.passwordRepeat')}</span>
           <PwInput
@@ -250,6 +261,13 @@ function Login({ onLogin }) {
   const submit = async (e) => {
     e.preventDefault()
     if (lockedFor > 0) return
+    // Empty-field guard: clear, instant feedback without a server round-trip.
+    if (!user.trim() || !pass) {
+      setError(t('auth.fillCredentials'))
+      triggerShake()
+      return
+    }
+    const pwLen = pass.length   // captured before we clear the field on error
     api.logPublicEvent(t('log.login.submit', { user: user.trim() }))
     try {
       const { access_token } = await api.login(user.trim(), pass)
@@ -261,10 +279,17 @@ function Login({ onLogin }) {
       if (err.status === 429) {
         setLockedFor(err.retryAfter || 180)
         setError('')
+      } else if (err.message === 'Failed to fetch') {
+        setError(t('login.errServerDown'))
+        triggerShake()
       } else {
-        const msg = err.message === 'Failed to fetch'
-          ? t('login.errServerDown')
-          : err.message || t('login.submit')
+        // A too-short password can never match a stored 8+ char hash, so on a
+        // failed attempt it is almost certainly the reason. We only show this
+        // AFTER a failure, so the 6-char master/emergency account still works
+        // (a correct short password logs in and no message is ever shown).
+        const msg = pwLen < MIN_PASSWORD
+          ? t('auth.pwTooShort', { n: MIN_PASSWORD })
+          : (err.status === 401 ? t('login.invalidCreds') : (err.message || t('login.submit')))
         setError(msg)
         triggerShake()
       }
@@ -296,7 +321,9 @@ function Login({ onLogin }) {
             value={pass}
             onChange={(v) => { setPass(v); setError('') }}
             onBlur={() => pass.length > 0 && api.logPublicEvent(t('log.login.pass'))}
+            disabled={lockedFor > 0}
           />
+          <span className="fld-hint">{t('auth.pwHint', { n: MIN_PASSWORD })}</span>
         </label>
         {error && !lockedFor && <div className="fld-note">{error}</div>}
         {lockedFor > 0 && (

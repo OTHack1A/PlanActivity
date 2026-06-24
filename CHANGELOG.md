@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## [1.8.0] — 2026-06-24
+
+### Added
+- **Clear authentication error messages** — when registration or login fails because the password is too short, the form now shows an elegant, localised message ("The password must be at least 8 characters long.") instead of a generic error. A subtle "Minimum 8 characters" hint sits under every password field. Empty login fields produce an instant "Enter username and password." message with no server round-trip.
+- **Stronger password policy** — minimum password length raised from 6 to **8 characters**, enforced both client-side and server-side (`schemas.MIN_PASSWORD_LENGTH`, single source of truth mirrored by `App.jsx` `MIN_PASSWORD`).
+- **Automatic database backups** — at every startup, *before* any schema migration, a consistent copy of `pianifica.db` is written to `data/backups/pianifica-YYYYMMDD-HHMMSS.db` using the SQLite online-backup API. The 10 most recent backups are kept; older ones are pruned automatically. This guarantees a rollback path for future schema changes: copy any backup over `data/pianifica.db` to restore. The routine never raises — a failed backup is logged and startup continues (`backend/_backup.py`).
+- **Smoke-test suite** — dependency-free tests (`tests/smoke.py`, run with `python -m tests.smoke`) covering password policy, Argon2id hashing, the master account, and the backup/prune logic.
+
+### Changed
+- **Resilient startup** — `create_all` and `_migrate_schema` are each wrapped so a single failure is logged and the server still starts (the app must never fail to boot).
+- **Robust API error parsing** — `api.js` `req()` now surfaces a usable message for every error shape (string detail, `{message}` object, or a Pydantic validation-error list), and attaches `err.validation` for callers that want to localise field errors.
+- The login-failure message for short passwords is shown **only after a failed attempt**, so the 6-character master/emergency account keeps working (a correct short password logs in and no message is ever shown).
+
+### Security
+- See the README "Security" section. No new attack surface introduced; the password-length change strengthens new-account credentials. The master/emergency account length is intentionally left unchanged to preserve documented recovery access (flagged as a known trade-off).
+
+---
+
 ## [1.7.0] — 2026-06-24
 
 ### Added
