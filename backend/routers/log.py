@@ -1,3 +1,10 @@
+"""
+Logging endpoints.
+
+The frontend forwards UI events here so user actions appear in the same log file
+as backend events. The log reader (GET /api/log) powers the in-app log viewer.
+All user-supplied strings are sanitised to prevent log-injection (OWASP A03).
+"""
 from fastapi import APIRouter, Depends, Query
 from .. import models, schemas
 from ..auth import current_account
@@ -5,11 +12,11 @@ from ..logging_config import LOG_FILE, get_logger
 
 router = APIRouter(prefix="/api/log", tags=["log"])
 
-_MAX_ACTION_LEN = 300
+_MAX_ACTION_LEN = 300  # cap UI-supplied strings so a single line can't bloat the log
 
 
 def _sanitize(s: str) -> str:
-    """Rimuove CR/LF (log injection, OWASP A03) e tronca la stringa."""
+    """Strip CR/LF (anti log-injection, OWASP A03) and truncate to a safe length."""
     return str(s).replace("\r", "").replace("\n", " ").strip()[:_MAX_ACTION_LEN]
 
 
@@ -18,7 +25,8 @@ def log_frontend_event(
     body: schemas.LogEventIn,
     _: models.Account = Depends(current_account),
 ):
-    """Evento UI autenticato (richiede JWT)."""
+    """Authenticated UI event (requires JWT). Accepts a ready-made `message` or a
+    legacy action+details pair; both are sanitised before being written."""
     if body.message:
         safe = _sanitize(body.message)
         if safe:
@@ -50,8 +58,10 @@ def get_log(
     lines: int = Query(500, ge=1, le=5000),
     _: models.Account = Depends(current_account),
 ):
+    # No log yet (e.g. brand-new install) — return an empty list, not a 404.
     if not LOG_FILE.exists():
         return {"lines": []}
     with open(LOG_FILE, encoding="utf-8") as f:
         all_lines = f.readlines()
+    # Return only the tail (most recent `lines` entries) to keep the payload small.
     return {"lines": [ln.rstrip() for ln in all_lines[-lines:]]}

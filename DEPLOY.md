@@ -329,16 +329,20 @@ Add to cron: `0 2 * * * /opt/pianifica/backup.sh`
 | Variable | Default | Description |
 |---|---|---|
 | `PIANIFICA_SECRET` | _(auto-generated)_ | JWT signing secret (≥32 chars) |
-| `PIANIFICA_MASTER_PASS` | `Melo82` | Emergency master account password |
+| `PIANIFICA_MASTER_HASH` | _(built-in default hash)_ | Argon2id **hash** of the emergency master password |
 
 Set them in `.env` (copied from `.env.example`) or export directly:
 
 ```bash
 export PIANIFICA_SECRET="your-long-random-secret-here"
-export PIANIFICA_MASTER_PASS="change-this-in-production"
+# Rotate the master password — store ONLY its hash, never the clear password:
+export PIANIFICA_MASTER_HASH="$(python scripts/gen_master_hash.py 'my new strong password')"
 ```
 
-> The master account username is always `Melo` (case-insensitive).
+> The master account username is always `Melo` (case-insensitive). The master
+> password is **never stored in clear text** — only its Argon2id hash is kept,
+> in `PIANIFICA_MASTER_HASH`, in a `data/.master_hash` file, or as the built-in
+> default. At login the entered password is verified against the hash one-way.
 
 ---
 
@@ -357,7 +361,7 @@ export PIANIFICA_MASTER_PASS="change-this-in-production"
 ## 12. Security checklist for production
 
 - [ ] Set a strong `PIANIFICA_SECRET` (≥ 64 random hex chars: `python -c "import secrets; print(secrets.token_hex(32))"`)
-- [ ] Change `PIANIFICA_MASTER_PASS` from the default `Melo82`
+- [ ] Rotate the master password from its built-in default by setting `PIANIFICA_MASTER_HASH` (`python scripts/gen_master_hash.py "..."`)
 - [ ] Enable HTTPS (Let's Encrypt via Certbot is free)
 - [ ] Restrict port 8000 to localhost if using nginx (`--host 127.0.0.1`)
 - [ ] Set up a firewall (only 80/443 public)

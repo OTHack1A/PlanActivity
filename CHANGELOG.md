@@ -2,6 +2,37 @@
 
 All notable changes to this project are documented here.
 
+## [1.9.0] — 2026-06-25
+
+### Security
+- **Master password is now stored only as an Argon2id hash** — the emergency
+  account password no longer appears in clear text anywhere (source, env, logs,
+  tests or docs). At login the entered password is verified one-way against the
+  hash via `verify_password()`, exactly like a regular account; the plain
+  password never exists outside the transient request.
+- **Configurable master password** — the hash can be overridden without
+  rebuilding via the `PIANIFICA_MASTER_HASH` environment variable or a
+  `data/.master_hash` file (gitignored). Resolution order: env var → file →
+  built-in default. To rotate it, run `python scripts/gen_master_hash.py "<new password>"`
+  and set the result. Reading an override never raises — a bad value falls back
+  to the default so the emergency account always stays usable.
+- Removed every clear-text occurrence of the old default password from the repo
+  (changelog, deploy guide, tests). `tests/robustness_test.ps1` now takes the
+  master password via `-MasterPass` / `PIANIFICA_MASTER_TEST_PASS`.
+
+### Added
+- `scripts/gen_master_hash.py` — one-shot helper to produce an Argon2id hash for
+  a new master password.
+
+### Changed
+- **Heavily commented codebase** — every backend module, router, and frontend
+  source file now carries explanatory module/section/inline documentation
+  (overall standalone-comment density ≈6%, higher counting docstrings).
+- `tests/smoke.py` no longer contains any clear password; the master-account
+  test injects a throwaway hash at runtime. Suite: 17/17 passing.
+
+---
+
 ## [1.8.0] — 2026-06-24
 
 ### Added
@@ -150,7 +181,7 @@ All notable changes to this project are documented here.
 
 ### Added
 - **Rate limiting** — 3 failed login attempts per username trigger a 180-second lockout. Implemented in-memory with `threading.Lock` (`backend/rate_limit.py`).
-- **Master / emergency account** — username `Melo`, password `Melo82`. Authenticates via `hmac.compare_digest` (constant-time, anti timing-attack). Issues a JWT with `sub="_master"`; never touches the database. Cannot be registered over or have its password changed.
+- **Master / emergency account** — username `Melo`, with a built-in default password (see DEPLOY.md for how to set/rotate it). Authenticates via constant-time comparison (anti timing-attack). Issues a JWT with `sub="_master"`; never touches the database. Cannot be registered over or have its password changed. _(As of v1.9.0 the master password is stored only as an Argon2id hash and is configurable via `PIANIFICA_MASTER_HASH`.)_
 - **Mandatory company name** — registration now requires a non-empty company string; `RegisterIn.company` has no default.
 - **Public event logging endpoint** — unauthenticated `POST /api/log/public-event` for login-page UI events (no password data ever logged).
 

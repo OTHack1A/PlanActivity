@@ -1,3 +1,10 @@
+"""
+Employee CRUD and avatar upload/serving.
+
+Avatars are validated by magic bytes (not just the extension) and capped at 2 MB
+to prevent malicious or oversized uploads. Files are stored on disk under
+DATA_DIR/avatars/, named by employee id.
+"""
 import re
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
@@ -12,6 +19,7 @@ router = APIRouter(prefix="/api/employees", tags=["employees"])
 
 AVATAR_DIR = DATA_DIR / "avatars"
 
+# Accepted avatar formats and the media type used when serving them back.
 _ALLOWED_EXTS = {"jpg", "jpeg", "png", "webp"}
 _MEDIA_TYPES = {
     "jpg": "image/jpeg",
@@ -20,6 +28,7 @@ _MEDIA_TYPES = {
     "webp": "image/webp",
 }
 
+# Leading byte signatures used to verify real image content (anti content-spoofing).
 _MAGIC: list[tuple[bytes, str]] = [
     (b"\xff\xd8\xff",        "jpg"),
     (b"\x89PNG\r\n\x1a\n",  "png"),
@@ -27,25 +36,30 @@ _MAGIC: list[tuple[bytes, str]] = [
 
 
 def _detect_image_ext(data: bytes) -> str | None:
+    """Return the image extension inferred from magic bytes, or None if unknown."""
     for sig, ext in _MAGIC:
         if data[: len(sig)] == sig:
             return ext
+    # WebP has a RIFF container: "RIFF"...."WEBP" within the first 12 bytes.
     if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return "webp"
     return None
 
 
 def _normalize_overtime(raw: str) -> float:
+    """Parse free-form overtime input into a float with one decimal (e.g. '1,5' -> 1.5)."""
     if not raw:
         return 0.0
+    # Accept comma or dot as the decimal separator; drop any other characters.
     v = re.sub(r"[^\d.]", "", raw.replace(",", "."))
     parts = v.split(".")
     if len(parts) > 1:
+        # Keep only the first decimal digit (0.1 h granularity).
         v = parts[0] + "." + parts[1][:1]
     try:
         return round(float(v), 1)
     except ValueError:
-        return 0.0
+        return 0.0  # unparseable -> treat as no overtime, never crash
 
 
 def _overtime_str(val: float) -> str:
@@ -112,6 +126,8 @@ def patch_employee(
     emp = db.get(models.Employee, emp_id)
     if not emp:
         raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    # Build a human-readable list of changes for the audit log; only touch fields
+    # actually present in the patch body so partial updates work as expected.
     changes = []
     if body.name is not None and body.name.strip() != emp.name:
         changes.append(f"nome: '{emp.name}' → '{body.name.strip()}'")
@@ -173,11 +189,14 @@ async def upload_avatar(
     emp = db.get(models.Employee, emp_id)
     if not emp:
         raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    # Cheap pre-check on the declared content type before reading the body.
     if not (file.content_type or "").startswith("image/"):
         raise HTTPException(status_code=415, detail="Il file deve essere un'immagine")
     content = await file.read()
+    # Hard size cap (2 MB) to avoid memory abuse / oversized avatars.
     if len(content) > 2 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Immagine troppo grande (max 2 MB)")
+    # Authoritative check: verify the bytes really are an image we support.
     ext = _detect_image_ext(content)
     if ext is None:
         raise HTTPException(
@@ -185,6 +204,7 @@ async def upload_avatar(
             detail="Formato immagine non riconosciuto (usa JPG, PNG o WebP)",
         )
     AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+    # Remove any previous avatar (possibly a different extension) before saving.
     for old in AVATAR_DIR.glob(f"{emp_id}.*"):
         old.unlink(missing_ok=True)
     (AVATAR_DIR / f"{emp_id}.{ext}").write_bytes(content)

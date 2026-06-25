@@ -709,18 +709,25 @@ const LANGS = {
 // ---------------------------------------------------------------------------
 const I18nContext = createContext(null)
 
+// Provider that holds the current language and exposes the t() translator to the
+// whole component tree. The chosen language is persisted in localStorage so it
+// survives reloads.
 export function I18nProvider({ children }) {
+  // Initialise from the saved preference, falling back to Italian.
   const [lang, setLangRaw] = useState(() => {
     const stored = localStorage.getItem('pianifica_lang')
     return stored && LANGS[stored] ? stored : 'it'
   })
 
+  // Switch language and remember the choice (ignores unknown codes).
   const setLang = (l) => {
     if (!LANGS[l]) return
     setLangRaw(l)
     localStorage.setItem('pianifica_lang', l)
   }
 
+  // Translate `key` in the active language; fall back to Italian, then to the
+  // raw key. `params` values replace {placeholders} in the string.
   const t = (key, params) => {
     const str = LANGS[lang][key] ?? LANGS.it[key] ?? key
     if (!params) return str
@@ -730,8 +737,8 @@ export function I18nProvider({ children }) {
     )
   }
 
-  const locale = LANGS[lang].locale
-  const dow    = LANGS[lang].dow
+  const locale = LANGS[lang].locale   // BCP-47 locale for Intl date formatting
+  const dow    = LANGS[lang].dow      // localized short weekday names (Mon-first)
 
   return (
     <I18nContext.Provider value={{ t, lang, setLang, locale, dow }}>
@@ -740,8 +747,10 @@ export function I18nProvider({ children }) {
   )
 }
 
+// Hook used throughout the app to read { t, lang, setLang, locale, dow }.
 export const useI18n = () => useContext(I18nContext)
 
+// Language picker options shown in the topbar (code + button label).
 export const LANG_OPTIONS = [
   { code: 'it', label: 'IT' },
   { code: 'en', label: 'EN' },

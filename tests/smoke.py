@@ -20,6 +20,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from backend import schemas
+from backend import auth  # module import so we can inject a test master hash
 from backend.auth import hash_password, verify_password, is_master_login
 from backend._backup import backup_database, DEFAULT_KEEP
 from backend.logging_config import setup_logging
@@ -57,10 +58,11 @@ def test_password_policy():
         ok = False
     check("8-char password accepted at registration", ok)
 
-    # Login schema must NOT enforce a minimum (legacy/master accounts).
+    # Login schema must NOT enforce a minimum (legacy/master accounts may have
+    # shorter passwords). Use an arbitrary 6-char value — NOT a real password.
     login_ok = False
     try:
-        schemas.LoginIn(user="melo", password="Melo82")  # 6 chars
+        schemas.LoginIn(user="someone", password="abc123")  # 6 chars, arbitrary
         login_ok = True
     except ValidationError:
         login_ok = False
@@ -78,10 +80,20 @@ def test_hashing():
 
 def test_master():
     print("[master account]")
-    check("correct master creds accepted", is_master_login("Melo", "Melo82") is True)
-    check("master username case-insensitive", is_master_login("melo", "Melo82") is True)
-    check("wrong master password rejected", is_master_login("Melo", "wrong") is False)
-    check("wrong master username rejected", is_master_login("admin", "Melo82") is False)
+    # Inject a throwaway hash so the real master password never appears in tests.
+    # is_master_login() reads module-level auth._MASTER_HASH at call time.
+    test_pw = "smoke-test-master-pw"
+    original = auth._MASTER_HASH
+    auth._MASTER_HASH = hash_password(test_pw)
+    try:
+        check("correct master creds accepted", is_master_login("Melo", test_pw) is True)
+        check("master username case-insensitive", is_master_login("melo", test_pw) is True)
+        check("wrong master password rejected", is_master_login("Melo", "wrong") is False)
+        check("wrong master username rejected", is_master_login("admin", test_pw) is False)
+        # The default embedded master hash must be a valid Argon2id string.
+        check("default master hash is argon2id", original.startswith("$argon2id$"))
+    finally:
+        auth._MASTER_HASH = original  # restore for any later tests
 
 
 def test_backup():

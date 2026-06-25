@@ -11,11 +11,15 @@ import {
 import * as api from './api.js'
 import { useI18n, LANG_OPTIONS } from './i18n.jsx'
 
+// Build up-to-two-letter initials from a name for avatar placeholders.
 const initials = (name) =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
 
 export { initials }
 
+// Daily working-hours target. Base is 8 h plus the employee's overtime; on
+// Saturdays it drops to 4 h when the "Saturday half-day" setting is enabled.
+// Used to colour-code totals (green = on target, etc.).
 const STD_HOURS = 8
 const empTarget = (emp) => STD_HOURS + (Number(emp && emp.overtime) || 0)
 const empDayTarget = (emp, dateISO, satHalfDay) => {
@@ -24,6 +28,9 @@ const empDayTarget = (emp, dateISO, satHalfDay) => {
 }
 
 /* ---------------------------------------------------------------- AVATAR */
+// Overlays the employee's uploaded photo on top of the initials placeholder.
+// If the image is missing or fails to load, it renders nothing so the initials
+// underneath remain visible.
 function AvatarImg({ emp }) {
   const [failed, setFailed] = useState(false)
   if (!emp.hasAvatar || failed) return null
@@ -43,10 +50,14 @@ function AvatarImg({ emp }) {
 }
 
 /* ---------------------------------------------------------------- TOPBAR */
+// App header: view tabs (day/week/month/year), date stepper, page navigation,
+// company badge, logout and the language switcher. Calendar-only controls are
+// hidden when viewing settings/log/account pages.
 export function Topbar({ view, setView, date, setDate, onSettings, onLog, onAccount, onCalendar, onToday, page, onLogout, company }) {
   const { t, lang, setLang, locale } = useI18n()
   const today = todayISO()
 
+  // Step the current date forward/back by one unit of the active view.
   const step = (dir) => {
     if (view === 'day') setDate(addDays(date, dir))
     else if (view === 'week') setDate(addDays(date, dir * 7))
@@ -117,7 +128,9 @@ export function Topbar({ view, setView, date, setDate, onSettings, onLog, onAcco
 }
 
 /* --------------------------------------------------------- EXPORT HELPERS */
-
+// Flatten one day's data into spreadsheet rows (one header + one row per
+// activity, or a single summary row for absent/idle employees). Shared by the
+// Excel exporters below so every tab has an identical column layout.
 function buildDayRows(employees, departments, fetchedEntries, fetchedAbsences, date, t) {
   const deptMap = new Map(departments.map((d) => [d.id, d]))
   const header = [
@@ -393,6 +406,9 @@ function ExportExcelModal({ data, date, onClose }) {
 }
 
 /* ------------------------------------------------------------- DAY VIEW */
+// One day at a glance: employees grouped by department as cards, each showing
+// activity count and hours (colour-coded vs target) or an absence/dismissal tag.
+// Clicking a card opens the ActivityModal. Includes mail/Excel export actions.
 export function DayView({ data, date, onOpen, onPrevDay, satHalfDay }) {
   const { t, locale } = useI18n()
   const groups = employeesByDept(data)
@@ -515,6 +531,8 @@ export function DayView({ data, date, onOpen, onPrevDay, satHalfDay }) {
 }
 
 /* ------------------------------------------------------------ WEEK VIEW */
+// A 7-day grid (employees x days). Each cell shows hours, an absence/dismissal
+// short tag, or a "+" to add. Today's column and Sundays are highlighted.
 export function WeekView({ data, date, onOpenDate, satHalfDay }) {
   const { t, locale } = useI18n()
   const days = weekDays(date)
@@ -613,6 +631,8 @@ export function WeekView({ data, date, onOpenDate, satHalfDay }) {
 }
 
 /* ----------------------------------------------------------- MONTH VIEW */
+// A calendar grid for the month with per-day totals and a heat bar. Scrolling
+// the wheel over the grid switches months (debounced via the `lock` ref).
 export function MonthView({ data, date, onPickDay, onChangeMonth }) {
   const { t, locale, dow } = useI18n()
   const cells = monthGrid(date)
@@ -676,6 +696,8 @@ export function MonthView({ data, date, onPickDay, onChangeMonth }) {
 }
 
 /* ------------------------------------------------------------ YEAR VIEW */
+// Twelve mini-month heatmaps for the year; each day is shaded by total hours
+// relative to the busiest day. Clicking a day jumps to it in the day view.
 export function YearView({ data, date, onPickDay }) {
   const { t, locale, dow } = useI18n()
   const year = fromISO(date).getFullYear()
@@ -727,8 +749,12 @@ export function YearView({ data, date, onPickDay }) {
 }
 
 /* --------------------------------------------------------- ACTIVITY MODAL */
+// Row helpers for the editable activity table.
 const emptyRow = () => ({ id: uid(), activity: '', hours: '', notes: '' })
+// A row is "blank" when activity, notes and hours are all empty.
 const isBlank = (r) => !(r.activity || '').trim() && !(r.notes || '').trim() && !String(r.hours).trim()
+// Keep exactly one trailing blank row so the user always has an empty line to
+// type into (like a spreadsheet) without an explicit "add row" button.
 const withTrailing = (list) => {
   const filled = list.filter((r) => !isBlank(r))
   return [...filled, emptyRow()]

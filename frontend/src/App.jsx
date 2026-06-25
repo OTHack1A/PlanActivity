@@ -705,19 +705,23 @@ function Settings({ data, onReload, settings, onSettingsChange }) {
 }
 
 // ---------------------------------------------------------------------------
-// App principale
+// Root application component. Owns all top-level state (auth screen, loaded
+// data, current page/view/date, open modal) and renders the login/register
+// gate or the authenticated calendar shell accordingly.
 // ---------------------------------------------------------------------------
 export default function App() {
   const { t } = useI18n()
-  const [screen, setScreen] = useState('loading')
+  const [screen, setScreen] = useState('loading')   // 'loading' | 'login' | 'register' | 'app'
   const [data, setData] = useState({ departments: [], employees: [], entries: {}, absences: {} })
   const [company, setCompany] = useState('')
   const [settings, setSettings] = useState({ saturday_half_day: false })
-  const [page, setPage] = useState('calendar')
-  const [view, setView] = useState('day')
+  const [page, setPage] = useState('calendar')      // calendar | settings | account | log
+  const [view, setView] = useState('day')           // day | week | month | year
   const [date, setDate] = useState(todayISO)
-  const [modal, setModal] = useState(null)
+  const [modal, setModal] = useState(null)          // ActivityModal context, or null
 
+  // Fetch only the entries/absences the current view needs (see viewRange).
+  // A 401 means the token expired -> drop it and bounce back to the login screen.
   const loadEntries = useCallback(async (v, d) => {
     const { from, to } = viewRange(v, d)
     try {
@@ -747,6 +751,8 @@ export default function App() {
     }
   }, [view, date, loadEntries])
 
+  // On first mount: decide the initial screen. With a token -> straight to the
+  // app; otherwise show login or register depending on whether an account exists.
   useEffect(() => {
     api.authStatus()
       .then(({ registered }) => {
@@ -759,6 +765,8 @@ export default function App() {
       .catch(() => setScreen('register'))
   }, [])
 
+  // When entering the app, load the reference data (departments, employees,
+  // account, settings) once, then the entries for the current view.
   useEffect(() => {
     if (screen !== 'app') return
     Promise.all([api.getDepartments(), api.getEmployees(), api.getAccount(), api.getSettings()])
@@ -773,6 +781,7 @@ export default function App() {
       })
   }, [screen]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Reload entries whenever the view or date changes (while in the app).
   useEffect(() => {
     if (screen !== 'app') return
     loadEntries(view, date)

@@ -1,3 +1,10 @@
+"""
+Activities and absences endpoints.
+
+The frontend fetches a whole date range at once (GET /entries) and writes a
+single employee/day at a time (PUT /entries/... and PUT /absences/...). Responses
+are shaped as nested dicts keyed by date then employee id for fast client lookup.
+"""
 from datetime import date as date_type
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -16,6 +23,8 @@ def get_entries(
     db: Session = Depends(get_db),
     _: models.Account = Depends(current_account),
 ):
+    """Return all activities and absences in the inclusive [from, to] date range."""
+    # Reject malformed dates early with a clear 422 rather than a 500 later.
     try:
         d_from = date_type.fromisoformat(from_)
         d_to = date_type.fromisoformat(to_)
@@ -34,6 +43,7 @@ def get_entries(
         .all()
     )
 
+    # Shape: entries[date][employee_id] = [ {activity row}, ... ]
     entries: dict = {}
     for a in activities:
         ds = a.date.isoformat()
@@ -41,6 +51,7 @@ def get_entries(
             {"id": a.id, "activity": a.activity, "hours": a.hours, "notes": a.notes}
         )
 
+    # Shape: absences[date][employee_id] = type
     abs_map: dict = {}
     for ab in absences:
         abs_map.setdefault(ab.date.isoformat(), {})[ab.employee_id] = ab.type
@@ -64,6 +75,8 @@ def put_entries(
     except ValueError:
         raise HTTPException(status_code=422, detail="Formato data non valido")
 
+    # Replace-all semantics: clear the day's activities, then re-insert the new
+    # set. Simpler and race-free for a single editor compared to diffing rows.
     db.query(models.Activity).filter(
         models.Activity.employee_id == employee_id,
         models.Activity.date == d,
@@ -107,12 +120,14 @@ def put_absence(
     except ValueError:
         raise HTTPException(status_code=422, detail="Formato data non valido")
 
+    # There is at most one absence row per employee/day (unique constraint).
     existing = (
         db.query(models.Absence)
         .filter(models.Absence.employee_id == employee_id, models.Absence.date == d)
         .first()
     )
 
+    # type=None clears the absence; otherwise upsert (update if present, else add).
     if not body.type:
         if existing:
             db.delete(existing)

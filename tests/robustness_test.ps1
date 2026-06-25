@@ -1,8 +1,22 @@
 # Pianifica Robustness Test Suite
-# Usage: .\tests\robustness_test.ps1
-# Requires backend running on localhost:8000
+# Usage: .\tests\robustness_test.ps1 -MasterPass "<master password>"
+#   or:  $env:PIANIFICA_MASTER_TEST_PASS = "<master password>"; .\tests\robustness_test.ps1
+# Requires the backend running on localhost:8000.
+#
+# The master password is NOT hardcoded here — it is supplied at run time so no
+# clear-text password ever lives in the repository.
 
-param([string]$Base = "http://localhost:8000")
+param(
+    [string]$Base = "http://localhost:8000",
+    [string]$MasterPass = $env:PIANIFICA_MASTER_TEST_PASS
+)
+
+# The suite authenticates as the emergency master account; without its password
+# it cannot proceed. Fail fast with a clear, actionable message.
+if (-not $MasterPass) {
+    Write-Host "PIANIFICA_MASTER_TEST_PASS (or -MasterPass) is required to run this suite." -ForegroundColor Yellow
+    exit 2
+}
 
 $pass = 0; $fail = 0
 
@@ -76,7 +90,7 @@ chk "GET /auth/status: 200" $r.ok $r.code
 # ===========================================================================
 Write-Host "`n=== 2. Login ===" -ForegroundColor Cyan
 
-$r = api POST "/api/auth/login" @{user="Melo"; password="Melo82"}
+$r = api POST "/api/auth/login" @{user="Melo"; password=$MasterPass}
 chk "Master login: 200" $r.ok $r.code
 $tok = $r.body.access_token
 if (-not $tok) { Write-Host "ABORT: no token" -ForegroundColor Red; exit 1 }
@@ -294,7 +308,7 @@ chk "GET /account: 200" $r.ok $r.code
 $r = api GET "/api/account" -expect 401
 chk "GET /account without auth: 401" $r.ok $r.code
 
-$r = api POST "/api/account/password" @{current="Melo82"; next="newpass"} -token $tok -expect 403
+$r = api POST "/api/account/password" @{current=$MasterPass; next="newpass"} -token $tok -expect 403
 chk "Master cannot change password: 403" $r.ok $r.code
 
 # ===========================================================================
@@ -306,7 +320,7 @@ chk "Logout: 200" $r.ok $r.code
 # ===========================================================================
 Write-Host "`n=== 12. Cleanup ===" -ForegroundColor Cyan
 
-$r = api POST "/api/auth/login" @{user="Melo"; password="Melo82"}
+$r = api POST "/api/auth/login" @{user="Melo"; password=$MasterPass}
 chk "Re-login for cleanup: 200" $r.ok $r.code
 $tok2 = $r.body.access_token
 

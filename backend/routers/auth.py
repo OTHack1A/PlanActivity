@@ -1,3 +1,10 @@
+"""
+Authentication endpoints: registration status, register, login, logout.
+
+This app is single-account: exactly one regular account may exist, plus the
+virtual master/emergency account. Login is protected by per-username rate
+limiting and never reveals whether a username exists (uniform 401).
+"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -11,17 +18,21 @@ from ..logging_config import get_logger
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+# Usernames that cannot be registered because they collide with the master account.
 _RESERVED_USERNAMES = {"melo"}
 
 
 @router.get("/status", response_model=schemas.AuthStatusOut)
 def auth_status(db: Session = Depends(get_db)):
+    """Public: tell the frontend whether to show the login or the register screen."""
     registered = db.query(models.Account).first() is not None
     return {"registered": registered}
 
 
 @router.post("/register", response_model=schemas.TokenOut, status_code=201)
 def register(body: schemas.RegisterIn, db: Session = Depends(get_db)):
+    """Create the single account (password length is validated by RegisterIn)."""
+    # Only one regular account is allowed — block a second registration.
     if db.query(models.Account).first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -48,9 +59,10 @@ def register(body: schemas.RegisterIn, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=schemas.TokenOut)
 def login(body: schemas.LoginIn, db: Session = Depends(get_db)):
+    """Authenticate and return a JWT. Order: rate-limit -> master -> regular account."""
     user = body.user.strip()
 
-    # 1. Rate limiting: blocca dopo MAX_ATTEMPTS tentativi falliti
+    # 1. Rate limiting: reject early if this username is currently locked out.
     locked_for = check_lockout(user)
     if locked_for > 0:
         m, s = divmod(locked_for, 60)
@@ -61,18 +73,20 @@ def login(body: schemas.LoginIn, db: Session = Depends(get_db)):
             headers={"Retry-After": str(locked_for)},
         )
 
-    # 2. Account master (bypass DB, credenziali fisse)
+    # 2. Master/emergency account: verified against a hash, never touches the DB.
     if is_master_login(user, body.password):
-        rl_reset(user)
+        rl_reset(user)  # successful login clears the failure counter
         get_logger().info(f"Login account master: utente '{user}'")
         return {"access_token": create_token(MASTER_ID)}
 
-    # 3. Account regolare dal DB
+    # 3. Regular account: case-insensitive username, hash-verified password.
     acc = (
         db.query(models.Account)
         .filter(models.Account.user.ilike(user))
         .first()
     )
+    # Same uniform 401 whether the user is missing or the password is wrong, so
+    # the response does not reveal which usernames exist.
     if not acc or not verify_password(body.password, acc.password_hash):
         locked_now = record_failure(user)
         remaining = MAX_ATTEMPTS - (1 if not locked_now else 0)

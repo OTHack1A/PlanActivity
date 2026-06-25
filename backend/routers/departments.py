@@ -1,3 +1,4 @@
+"""Department CRUD endpoints (create, list, delete). All require authentication."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -13,6 +14,7 @@ def get_departments(
     db: Session = Depends(get_db),
     _: models.Account = Depends(current_account),
 ):
+    """List departments in creation order."""
     return db.query(models.Department).order_by(models.Department.created_at).all()
 
 
@@ -22,6 +24,7 @@ def create_department(
     db: Session = Depends(get_db),
     _: models.Account = Depends(current_account),
 ):
+    # Create the department; refresh to return the server-generated id.
     dep = models.Department(name=body.name.strip(), color=body.color)
     db.add(dep)
     db.commit()
@@ -39,6 +42,7 @@ def delete_department(
     dep = db.get(models.Department, dep_id)
     if not dep:
         raise HTTPException(status_code=404, detail="Reparto non trovato")
+    # Deleting cascades to employees and their activities (see model relationships).
     n_emp = len(dep.employees)
     get_logger().info(f"Reparto eliminato: '{dep.name}' (con {n_emp} dipendenti)")
     db.delete(dep)

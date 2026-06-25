@@ -101,11 +101,15 @@ planactivity/
 │       ├── App.jsx          # state + pages (calendar, settings, log)
 │       ├── components.jsx   # UI components
 │       └── app.css          # light theme, orange topbar
+├── scripts/
+│   └── gen_master_hash.py   # generate an Argon2id hash for the master password
+├── tests/
+│   ├── smoke.py             # dependency-free unit tests (python -m tests.smoke)
+│   └── robustness_test.ps1  # end-to-end HTTP suite (-MasterPass required)
 ├── run.py                   # PyInstaller entry point
 ├── pianifica.spec           # PyInstaller build config
 ├── logo.ico                 # application icon (6 sizes, 16–256 px)
-├── data/                    # db, avatars, .secret  ← gitignored
-├── pianifica.log            # runtime log           ← gitignored
+├── data/                    # db, avatars, .secret, backups  ← gitignored
 ├── DEPLOY.md                # full deployment guide
 ├── USER_GUIDE.md            # end-user manual
 ├── CHANGELOG.md
@@ -197,6 +201,7 @@ See [DEPLOY.md](DEPLOY.md) for systemd service, nginx + TLS, and backup instruct
 |---|---|
 | Password hashing | **Argon2id** — m=64 MB, t=3, p=4 (OWASP 2024 parameters) |
 | Password policy | Minimum **8 characters** at registration, enforced client- and server-side |
+| Master password | Stored **only as an Argon2id hash** (never in clear text); configurable via `PIANIFICA_MASTER_HASH` — see DEPLOY.md |
 | JWT secret | Auto-generated on first run, stored in `data/.secret` (gitignored); 8-hour token expiry |
 | Rate limiting | 3 failed login attempts → 180-second lockout per username (constant-time master check) |
 | SQL injection | Impossible — all queries use parameterised SQLAlchemy ORM |
