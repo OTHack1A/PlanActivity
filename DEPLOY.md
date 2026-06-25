@@ -329,20 +329,24 @@ Add to cron: `0 2 * * * /opt/pianifica/backup.sh`
 | Variable | Default | Description |
 |---|---|---|
 | `PIANIFICA_SECRET` | _(auto-generated)_ | JWT signing secret (≥32 chars) |
+| `PIANIFICA_MASTER_USER_HASH` | _(built-in default hash)_ | Argon2id **hash** of the emergency master username |
 | `PIANIFICA_MASTER_HASH` | _(built-in default hash)_ | Argon2id **hash** of the emergency master password |
 
 Set them in `.env` (copied from `.env.example`) or export directly:
 
 ```bash
 export PIANIFICA_SECRET="your-long-random-secret-here"
-# Rotate the master password — store ONLY its hash, never the clear password:
-export PIANIFICA_MASTER_HASH="$(python scripts/gen_master_hash.py 'my new strong password')"
+# Rotate the master credentials — store ONLY their hashes, never the clear values:
+export PIANIFICA_MASTER_USER_HASH="$(python scripts/gen_master_hash.py 'new-username')"
+export PIANIFICA_MASTER_HASH="$(python scripts/gen_master_hash.py 'new-strong-password')"
 ```
 
-> The master account username is always `Melo` (case-insensitive). The master
-> password is **never stored in clear text** — only its Argon2id hash is kept,
-> in `PIANIFICA_MASTER_HASH`, in a `data/.master_hash` file, or as the built-in
-> default. At login the entered password is verified against the hash one-way.
+> The emergency master account's **username and password are both stored only as
+> Argon2id hashes** — the clear credentials are never kept on disk, in the
+> environment, or in this repository. At login each entered value is verified
+> one-way against its hash. The username is matched case-insensitively. Override
+> the hashes via the env vars above (or `data/.master_user_hash` /
+> `data/.master_hash`) to set your own credentials.
 
 ---
 

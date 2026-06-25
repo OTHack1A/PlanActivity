@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented here.
 
+## [1.9.1] — 2026-06-25
+
+### Security
+- **Master username is now also stored only as an Argon2id hash** — previously
+  only the password was hashed while the username sat in clear text in the
+  source. Now *both* the master username and password are kept solely as one-way
+  hashes; neither clear value appears anywhere in the repository, environment,
+  logs, tests or docs. At login each entered value is verified one-way against
+  its hash (username matched case-insensitively).
+- New `is_master_username()` reserves the master username against registration
+  without ever exposing it; the username may be overridden via
+  `PIANIFICA_MASTER_USER_HASH` or `data/.master_user_hash` (gitignored).
+- The successful-master-login log line no longer echoes the entered username,
+  and the master session's UI display name is a generic label ("Master") rather
+  than the real username.
+- Default master credentials updated. The clear credentials are intentionally
+  **not disclosed** in this codebase — only their hashes are embedded.
+
+### Tests
+- `tests/smoke.py` injects throwaway username+password hashes (18/18 pass).
+- `tests/robustness_test.ps1` takes the master username via `-MasterUser` /
+  `PIANIFICA_MASTER_TEST_USER` (63/63 pass end-to-end).
+
+---
+
 ## [1.9.0] — 2026-06-25
 
 ### Security
@@ -181,7 +206,7 @@ All notable changes to this project are documented here.
 
 ### Added
 - **Rate limiting** — 3 failed login attempts per username trigger a 180-second lockout. Implemented in-memory with `threading.Lock` (`backend/rate_limit.py`).
-- **Master / emergency account** — username `Melo`, with a built-in default password (see DEPLOY.md for how to set/rotate it). Authenticates via constant-time comparison (anti timing-attack). Issues a JWT with `sub="_master"`; never touches the database. Cannot be registered over or have its password changed. _(As of v1.9.0 the master password is stored only as an Argon2id hash and is configurable via `PIANIFICA_MASTER_HASH`.)_
+- **Master / emergency account** — a dedicated emergency account authenticates via constant-time comparison (anti timing-attack), issues a JWT with `sub="_master"`, and never touches the database. It cannot be registered over or have its password changed. _(As of v1.9.x both the master username and password are stored only as Argon2id hashes — the clear credentials are not disclosed in this repository — and are configurable via `PIANIFICA_MASTER_USER_HASH` / `PIANIFICA_MASTER_HASH`.)_
 - **Mandatory company name** — registration now requires a non-empty company string; `RegisterIn.company` has no default.
 - **Public event logging endpoint** — unauthenticated `POST /api/log/public-event` for login-page UI events (no password data ever logged).
 

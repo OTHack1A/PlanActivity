@@ -14,6 +14,7 @@ data/backups/
 data/avatars/
 data/.secret
 data/.master_hash
+data/.master_user_hash
 data/logo.*
 
 # Log (generato a runtime)

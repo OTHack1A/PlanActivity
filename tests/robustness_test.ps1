@@ -8,13 +8,15 @@
 
 param(
     [string]$Base = "http://localhost:8000",
+    [string]$MasterUser = $env:PIANIFICA_MASTER_TEST_USER,
     [string]$MasterPass = $env:PIANIFICA_MASTER_TEST_PASS
 )
 
-# The suite authenticates as the emergency master account; without its password
-# it cannot proceed. Fail fast with a clear, actionable message.
-if (-not $MasterPass) {
-    Write-Host "PIANIFICA_MASTER_TEST_PASS (or -MasterPass) is required to run this suite." -ForegroundColor Yellow
+# The suite authenticates as the emergency master account; without its
+# credentials it cannot proceed. The master username and password are NOT
+# hardcoded here so no secret lives in the repository — supply them at run time.
+if (-not $MasterUser -or -not $MasterPass) {
+    Write-Host "Set PIANIFICA_MASTER_TEST_USER and PIANIFICA_MASTER_TEST_PASS (or -MasterUser/-MasterPass)." -ForegroundColor Yellow
     exit 2
 }
 
@@ -90,12 +92,12 @@ chk "GET /auth/status: 200" $r.ok $r.code
 # ===========================================================================
 Write-Host "`n=== 2. Login ===" -ForegroundColor Cyan
 
-$r = api POST "/api/auth/login" @{user="Melo"; password=$MasterPass}
+$r = api POST "/api/auth/login" @{user=$MasterUser; password=$MasterPass}
 chk "Master login: 200" $r.ok $r.code
 $tok = $r.body.access_token
 if (-not $tok) { Write-Host "ABORT: no token" -ForegroundColor Red; exit 1 }
 
-$r = api POST "/api/auth/login" @{user="Melo"; password="WRONG"} -expect 401
+$r = api POST "/api/auth/login" @{user=$MasterUser; password="WRONG"} -expect 401
 chk "Wrong password: 401" $r.ok $r.code
 
 $r = api POST "/api/auth/login" @{user=("x"*51); password="p"} -expect 422
@@ -320,7 +322,7 @@ chk "Logout: 200" $r.ok $r.code
 # ===========================================================================
 Write-Host "`n=== 12. Cleanup ===" -ForegroundColor Cyan
 
-$r = api POST "/api/auth/login" @{user="Melo"; password=$MasterPass}
+$r = api POST "/api/auth/login" @{user=$MasterUser; password=$MasterPass}
 chk "Re-login for cleanup: 200" $r.ok $r.code
 $tok2 = $r.body.access_token
 

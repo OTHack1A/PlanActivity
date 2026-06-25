@@ -91,64 +91,77 @@ def verify_password(plain: str, hashed: str) -> bool:
 # Master / emergency account
 # ---------------------------------------------------------------------------
 # The master account lets the operator regain access if the regular account's
-# credentials are lost. Like any account, its PASSWORD is stored only as an
-# Argon2id hash — the clear password appears nowhere (not in source, env, or
-# logs). At login the entered password is verified against this hash one-way.
+# credentials are lost. BOTH its username AND its password are stored only as
+# Argon2id hashes — neither value appears in clear text anywhere (not in source,
+# env, logs, tests or docs). At login each entered value is verified one-way
+# against its hash; the clear values never exist outside the transient request.
+# (Username and password are deliberately not disclosed in this codebase.)
 #
-# The hash may be overridden WITHOUT rebuilding the executable, via either:
-#   1. the PIANIFICA_MASTER_HASH environment variable, or
-#   2. a `data/.master_hash` file containing a single Argon2id hash line.
-# To change the master password, generate a new hash with
-# `python scripts/gen_master_hash.py "<new password>"` and supply it through
-# (1) or (2). If neither is provided, the embedded default below is used.
+# Each hash may be overridden WITHOUT rebuilding the executable, via either:
+#   1. an environment variable (PIANIFICA_MASTER_HASH / PIANIFICA_MASTER_USER_HASH), or
+#   2. a file in data/ (.master_hash / .master_user_hash) with one hash line.
+# Generate new hashes with `python scripts/gen_master_hash.py "<value>"`.
+# If no override is given, the embedded defaults below are used.
 MASTER_ID = "_master"        # JWT subject for the virtual master account
-_MASTER_USER = "melo"        # the username is public; only the password is secret
+MASTER_DISPLAY_NAME = "Master"  # generic label shown in the UI (never the real username)
 
-# Argon2id hash of the default emergency password. This string is one-way: the
-# original password cannot be recovered from it. Override it to rotate the
-# master password (see note above).
+# Argon2id hash of the default master username (lower-cased) and password. These
+# strings are one-way: the original values cannot be recovered from them.
+_DEFAULT_MASTER_USER_HASH = (
+    "$argon2id$v=19$m=65536,t=3,p=4$5IBWAOO4mtw3jAChAM5uHQ$JWYCeeAieFRXGZVO2SUqOFB6wSGIvQ/jxZJUe8Sqtiw"
+)
 _DEFAULT_MASTER_HASH = (
-    "$argon2id$v=19$m=65536,t=3,p=4$n8UiAutjZ+z1G42fqOx4/w$uDC2HlwkYkaBBADi9nUFK1Fd+6E1IYGJUwVbsiF2cmk"
+    "$argon2id$v=19$m=65536,t=3,p=4$QojFJJj8CvILNef4C9J83A$TcTIrZp5Eylmhahlkz0YZ7moypEsdCkmlFuLUwF3XUc"
 )
 
-# Optional on-disk override (gitignored). Mirrors the PIANIFICA_SECRET pattern.
+# Optional on-disk overrides (gitignored). Mirror the PIANIFICA_SECRET pattern.
 _MASTER_HASH_FILE = DATA_DIR / ".master_hash"
+_MASTER_USER_FILE = DATA_DIR / ".master_user_hash"
 
 
-def _load_master_hash() -> str:
-    """Resolve the master password hash: env var > file > embedded default.
+def _load_hash(env_name: str, override_file, default: str) -> str:
+    """Resolve a hash: env var > on-disk file > embedded default.
 
-    Never raises: any problem reading the override falls back to the embedded
+    Never raises: any problem reading an override falls back to the embedded
     default, guaranteeing the emergency account always remains usable.
     """
     try:
-        env = os.getenv("PIANIFICA_MASTER_HASH", "").strip()
+        env = os.getenv(env_name, "").strip()
         if env.startswith("$argon2"):
             return env
-        if _MASTER_HASH_FILE.exists():
-            s = _MASTER_HASH_FILE.read_text(encoding="utf-8").strip()
+        if override_file.exists():
+            s = override_file.read_text(encoding="utf-8").strip()
             if s.startswith("$argon2"):
                 return s
     except Exception:
         # Reading an override must never break startup — use the default.
         pass
-    return _DEFAULT_MASTER_HASH
+    return default
 
 
 # Resolved once at import time; cheap and avoids per-request disk I/O.
-_MASTER_HASH = _load_master_hash()
+_MASTER_HASH = _load_hash("PIANIFICA_MASTER_HASH", _MASTER_HASH_FILE, _DEFAULT_MASTER_HASH)
+_MASTER_USER_HASH = _load_hash("PIANIFICA_MASTER_USER_HASH", _MASTER_USER_FILE, _DEFAULT_MASTER_USER_HASH)
+
+
+def is_master_username(username: str) -> bool:
+    """Return True iff `username` is the (case-insensitive) master username.
+
+    Verified one-way against the stored username hash so the real username is
+    never present in clear text. Used to reserve it against registration.
+    """
+    return verify_password(username.lower(), _MASTER_USER_HASH)
 
 
 def is_master_login(username: str, password: str) -> bool:
     """Return True iff `username`/`password` match the emergency master account.
 
-    - Username is compared in constant time (`hmac.compare_digest`).
-    - Password is verified against the stored Argon2id hash (one-way) — the clear
-      password is never compared or stored.
-    The password verification always runs, even when the username does not match,
-    so the response time does not reveal *which* check failed (anti-enumeration).
+    Both the username (case-insensitive) and the password are verified one-way
+    against their Argon2id hashes — neither clear value is ever compared or
+    stored. Both verifications always run so the response time does not reveal
+    which check failed (anti-enumeration).
     """
-    u_ok = _hmac.compare_digest(username.lower(), _MASTER_USER)
+    u_ok = verify_password(username.lower(), _MASTER_USER_HASH)
     p_ok = verify_password(password, _MASTER_HASH)
     return u_ok and p_ok
 
@@ -180,11 +193,12 @@ def current_account(
         )
 
     # Master account: not in the DB — return a lightweight virtual object so
-    # downstream code can treat it like a normal account.
+    # downstream code can treat it like a normal account. The display name is a
+    # generic label, never the real (secret) master username.
     if account_id == MASTER_ID:
         return SimpleNamespace(
             id=MASTER_ID,
-            user="Melo",
+            user=MASTER_DISPLAY_NAME,
             company="",
             password_hash="",
         )

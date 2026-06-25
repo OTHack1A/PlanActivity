@@ -80,20 +80,26 @@ def test_hashing():
 
 def test_master():
     print("[master account]")
-    # Inject a throwaway hash so the real master password never appears in tests.
-    # is_master_login() reads module-level auth._MASTER_HASH at call time.
+    # Inject throwaway hashes so the real master username/password never appear in
+    # tests. is_master_login() reads the module-level hashes at call time.
+    test_user = "Smoke-Test-User"   # arbitrary, NOT the real master username
     test_pw = "smoke-test-master-pw"
-    original = auth._MASTER_HASH
+    orig_pw_hash = auth._MASTER_HASH
+    orig_user_hash = auth._MASTER_USER_HASH
     auth._MASTER_HASH = hash_password(test_pw)
+    auth._MASTER_USER_HASH = hash_password(test_user.lower())
     try:
-        check("correct master creds accepted", is_master_login("Melo", test_pw) is True)
-        check("master username case-insensitive", is_master_login("melo", test_pw) is True)
-        check("wrong master password rejected", is_master_login("Melo", "wrong") is False)
-        check("wrong master username rejected", is_master_login("admin", test_pw) is False)
-        # The default embedded master hash must be a valid Argon2id string.
-        check("default master hash is argon2id", original.startswith("$argon2id$"))
+        check("correct master creds accepted", is_master_login(test_user, test_pw) is True)
+        check("master username case-insensitive", is_master_login(test_user.upper(), test_pw) is True)
+        check("wrong master password rejected", is_master_login(test_user, "wrong") is False)
+        check("wrong master username rejected", is_master_login("someone-else", test_pw) is False)
+        # The default embedded hashes must be valid Argon2id strings.
+        check("default master password hash is argon2id", orig_pw_hash.startswith("$argon2id$"))
+        check("default master username hash is argon2id", orig_user_hash.startswith("$argon2id$"))
     finally:
-        auth._MASTER_HASH = original  # restore for any later tests
+        # Restore the real (default) hashes for any later tests.
+        auth._MASTER_HASH = orig_pw_hash
+        auth._MASTER_USER_HASH = orig_user_hash
 
 
 def test_backup():

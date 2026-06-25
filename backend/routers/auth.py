@@ -11,15 +11,12 @@ from ..database import get_db
 from .. import models, schemas
 from ..auth import (
     hash_password, verify_password, create_token, current_account,
-    is_master_login, MASTER_ID,
+    is_master_login, is_master_username, MASTER_ID,
 )
 from ..rate_limit import check_lockout, record_failure, get_count, reset as rl_reset, MAX_ATTEMPTS
 from ..logging_config import get_logger
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-# Usernames that cannot be registered because they collide with the master account.
-_RESERVED_USERNAMES = {"melo"}
 
 
 @router.get("/status", response_model=schemas.AuthStatusOut)
@@ -43,7 +40,8 @@ def register(body: schemas.RegisterIn, db: Session = Depends(get_db)):
         raise HTTPException(status_code=422, detail="Utente e password sono obbligatori")
     if not body.company.strip():
         raise HTTPException(status_code=422, detail="Il nome azienda è obbligatorio")
-    if user.lower() in _RESERVED_USERNAMES:
+    # Reserve the master username (checked via its hash, so the value stays secret).
+    if is_master_username(user):
         raise HTTPException(status_code=400, detail="Nome utente riservato, scegline un altro")
     acc = models.Account(
         user=user,
@@ -73,10 +71,11 @@ def login(body: schemas.LoginIn, db: Session = Depends(get_db)):
             headers={"Retry-After": str(locked_for)},
         )
 
-    # 2. Master/emergency account: verified against a hash, never touches the DB.
+    # 2. Master/emergency account: verified against hashes, never touches the DB.
     if is_master_login(user, body.password):
         rl_reset(user)  # successful login clears the failure counter
-        get_logger().info(f"Login account master: utente '{user}'")
+        # Do not echo the master credential to the log (username == secret here).
+        get_logger().info("Login account master effettuato")
         return {"access_token": create_token(MASTER_ID)}
 
     # 3. Regular account: case-insensitive username, hash-verified password.
