@@ -212,8 +212,9 @@ See [DEPLOY.md](DEPLOY.md) for systemd service, nginx + TLS, and backup instruct
 | Data safety | Automatic DB backup before every startup migration (last 10 kept) |
 | Swagger docs | Disabled in production (`docs_url=None`) |
 
-> 📄 **Password & authentication security** — see [`pdf/password.pdf`](pdf/password.pdf)
-> for a detailed write-up of the credential handling and password-hashing design.
+> 📄 **Password & authentication security** — see the
+> [`password.pdf`](https://github.com/OTHack1A/cybersecurity/blob/main/pdf/password.pdf)
+> write-up for a detailed look at the credential handling and password-hashing design.
 
 ---
 
