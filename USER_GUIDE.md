@@ -52,7 +52,7 @@ On the very first visit the registration screen appears.
 
 1. Enter a **username** (your name or company name — visible in the topbar)
 2. Enter your **company name**
-3. Choose a **password** (minimum 6 characters)
+3. Choose a **password** (minimum 8 characters)
 4. Click **Register**
 
 > This can only be done once. All subsequent logins use the Login screen.
